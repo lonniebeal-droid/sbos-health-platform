@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "SBOS HealthOS Enterprise API",
-    "description": "Production-grade multi-tenant REST and GraphQL API for SBOS HealthOS Operating System.",
+    "description": "Production-grade multi-tenant REST and GraphQL API for SBOS HealthOS Operating System. All /api routes are rate-limited (120 req/min per IP; 15 req/min on /api/ai/*) and reject request bodies larger than 256 KB (413). AI endpoints validate input and return 400 on invalid payloads.",
     "version": "3.4.0-enterprise",
     "contact": {
       "name": "SBOS Developer Platform",
@@ -20,7 +20,237 @@
       "get": {
         "summary": "Health check and system status",
         "responses": {
-          "200": { "description": "System operational" }
+          "200": {
+            "description": "System operational"
+          }
+        }
+      }
+    },
+    "/ai/chat": {
+      "post": {
+        "tags": [
+          "AI (Jessie)"
+        ],
+        "summary": "Conversational AI assistant (Jessie care navigator / clinical / payer / HR)",
+        "description": "Returns a Gemini-generated reply; falls back to a canned response when GEMINI_API_KEY is unset.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "prompt"
+                ],
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8000
+                  },
+                  "context": {
+                    "type": "string",
+                    "enum": [
+                      "general_patient",
+                      "clinical_provider",
+                      "insurance_admin",
+                      "employer_hr"
+                    ],
+                    "default": "general_patient"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI reply and suggested actions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reply": {
+                      "type": "string"
+                    },
+                    "suggestedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request payload"
+          },
+          "413": {
+            "description": "Request body too large (>256 KB)"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "AI processing error"
+          }
+        }
+      }
+    },
+    "/ai/clinical-notes": {
+      "post": {
+        "tags": [
+          "AI (Jessie)"
+        ],
+        "summary": "Generate a BIRP clinical note with suggested ICD-10 / CPT codes",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "rawNotes"
+                ],
+                "properties": {
+                  "rawNotes": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20000
+                  },
+                  "patientName": {
+                    "type": "string"
+                  },
+                  "visitType": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Structured BIRP note",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "birpNote": {
+                      "type": "object",
+                      "properties": {
+                        "behavior": {
+                          "type": "string"
+                        },
+                        "intervention": {
+                          "type": "string"
+                        },
+                        "response": {
+                          "type": "string"
+                        },
+                        "plan": {
+                          "type": "string"
+                        },
+                        "suggestedICD": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "suggestedCPT": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request payload"
+          },
+          "413": {
+            "description": "Request body too large (>256 KB)"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "BIRP generation error"
+          }
+        }
+      }
+    },
+    "/ai/fraud-analysis": {
+      "post": {
+        "tags": [
+          "AI (Jessie)"
+        ],
+        "summary": "Claims Fraud, Waste & Abuse (FWA) risk analysis",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "claimData"
+                ],
+                "properties": {
+                  "claimData": {
+                    "type": "object",
+                    "description": "The claim to analyze (codes, amounts, provider, etc.)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Risk score, recommendation, and flags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "riskScore": {
+                      "type": "number"
+                    },
+                    "recommendation": {
+                      "type": "string"
+                    },
+                    "riskFlags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request payload"
+          },
+          "413": {
+            "description": "Request body too large (>256 KB)"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Fraud analysis error"
+          }
         }
       }
     },
@@ -34,16 +264,24 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "email": { "type": "string" },
-                  "password": { "type": "string" },
-                  "tenantId": { "type": "string" }
+                  "email": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "tenantId": {
+                    "type": "string"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Authentication token and profile payload returned" }
+          "200": {
+            "description": "Authentication token and profile payload returned"
+          }
         }
       }
     },
@@ -51,37 +289,61 @@
       "get": {
         "summary": "Get tenant appointments",
         "parameters": [
-          { "name": "tenantId", "in": "query", "schema": { "type": "string" } }
+          {
+            "name": "tenantId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "List of scheduled appointments" }
+          "200": {
+            "description": "List of scheduled appointments"
+          }
         }
       },
       "post": {
         "summary": "Book a new appointment",
         "responses": {
-          "200": { "description": "Appointment confirmed" }
+          "200": {
+            "description": "Appointment confirmed"
+          }
         }
       }
     },
     "/messages": {
-      "get": { "summary": "Get patient/provider secure messages" },
-      "post": { "summary": "Send encrypted HIPAA patient message" }
+      "get": {
+        "summary": "Get patient/provider secure messages"
+      },
+      "post": {
+        "summary": "Send encrypted HIPAA patient message"
+      }
     },
     "/telehealth/rooms": {
-      "post": { "summary": "Generate WebRTC room signaling token" }
+      "post": {
+        "summary": "Generate WebRTC room signaling token"
+      }
     },
     "/billing/checkout-session": {
-      "post": { "summary": "Create Stripe subscription checkout session" }
+      "post": {
+        "summary": "Create Stripe subscription checkout session"
+      }
     },
     "/notifications/sms": {
-      "post": { "summary": "Send SMS notification via Twilio" }
+      "post": {
+        "summary": "Send SMS notification via Twilio"
+      }
     },
     "/audit/logs": {
-      "get": { "summary": "Retrieve immutable HIPAA audit trails" }
+      "get": {
+        "summary": "Retrieve immutable HIPAA audit trails"
+      }
     },
     "/graphql": {
-      "post": { "summary": "GraphQL Endpoint for multi-tenant queries" }
+      "post": {
+        "summary": "GraphQL Endpoint for multi-tenant queries"
+      }
     }
   }
 }
