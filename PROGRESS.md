@@ -166,6 +166,9 @@ and pushed; CI (`build-and-test` + a `docker` smoke-test job) is green.
   raised by `express.json()` — returned a misleading 500. Now honors 4xx client
   statuses with generic messages. Verified in-container: malformed→400,
   oversized→413, missing-field→400, valid→200.
+- **CI regression guard:** the docker smoke-test job now also asserts the
+  client-error contract (malformed body→400, missing field→400, >256kb→413) so
+  the fix above can't regress.
 
 Backend follow-ups needing credentials or a decision: authenticate `/api/ai/*`
 (needs the Supabase JWT secret), shared-store rate limiter for multi-instance,

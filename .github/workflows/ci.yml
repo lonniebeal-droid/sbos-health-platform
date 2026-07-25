@@ -70,6 +70,18 @@ jobs:
           check http://localhost:3000/api/docs/openapi.json 200   # served from docs/
           check http://localhost:3000/ 200                        # SPA index
           check http://localhost:3000/api/appointments 404        # removed stub
+
+          # Client-error contract (regression guard for the 4xx error handler).
+          post_status() { # url body expected
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$1" \
+              -H "Content-Type: application/json" --data-binary "$2")
+            echo "POST $1 -> $code (expected $3)"
+            test "$code" = "$3"
+          }
+          post_status http://localhost:3000/api/ai/chat '{bad json' 400   # malformed body
+          post_status http://localhost:3000/api/ai/chat '{}' 400          # missing prompt
+          big=$(head -c 300000 </dev/zero | tr '\0' x)
+          post_status http://localhost:3000/api/ai/chat "{\"prompt\":\"$big\"}" 413  # >256kb
           echo "runtime contract OK"
 
       - name: Container logs (on failure)
