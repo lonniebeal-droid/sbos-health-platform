@@ -7,7 +7,7 @@ import { createServer as createViteServer } from 'vite';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Gemini model is configurable via env. The previous hardcoded value
 // ('gemini-3.6-flash') is not a real model and 404s on every call. Verify the

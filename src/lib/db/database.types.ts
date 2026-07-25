@@ -1,0 +1,174 @@
+// Database models — hand-written to match the canonical schema in
+// supabase/migrations/20260724000000_enterprise_schema.sql and the auth/RLS
+// migration. Once the local stack is running these can be regenerated and
+// cross-checked with:  supabase gen types typescript --local
+//
+// Naming is snake_case to mirror Postgres exactly. Map to the camelCase UI
+// domain types (src/types.ts) via src/lib/db/mappers.ts.
+
+// ----- Enums (mirror CREATE TYPE ... AS ENUM) -----
+export type DbUserRole = 'patient' | 'provider' | 'insurance' | 'employer' | 'admin';
+export type DbClaimStatus =
+  | 'submitted' | 'in_review' | 'adjudicated' | 'approved' | 'denied' | 'paid';
+export type DbAppointmentType = 'telehealth' | 'in_person' | 'urgent_care' | 'specialist';
+export type DbAppointmentStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+export type DbRxStatus = 'active' | 'refill_requested' | 'expired' | 'discontinued';
+export type DbPriorAuthStatus = 'pending' | 'approved' | 'denied' | 'info_requested';
+export type DbOrgType = 'health_system' | 'payer' | 'employer_group' | 'clinic';
+
+// ----- Row types (SELECT result shape) -----
+export interface OrganizationRow {
+  id: string;
+  name: string;
+  type: DbOrgType;
+  tax_id: string | null;
+  npi: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// `public.users` is a PROFILE table keyed to auth.users(id). Passwords live in
+// Supabase Auth (auth.users), never here.
+export interface UserRow {
+  id: string;
+  organization_id: string | null;
+  email: string;
+  role: DbUserRole;
+  full_name: string;
+  phone: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface PatientRow {
+  id: string;
+  user_id: string | null;
+  organization_id: string | null;
+  dob: string;
+  gender: string | null;
+  address: string | null;
+  insurance_member_id: string;
+  policy_group_number: string;
+  blood_type: string | null;
+  allergies: string[];
+  chronic_conditions: string[];
+  created_at: string;
+}
+
+export interface ProviderRow {
+  id: string;
+  user_id: string | null;
+  organization_id: string | null;
+  npi: string;
+  specialty: string;
+  license_number: string;
+  accepting_new_patients: boolean;
+  consultation_fee: number;
+  created_at: string;
+}
+
+export interface AppointmentRow {
+  id: string;
+  patient_id: string | null;
+  provider_id: string | null;
+  organization_id: string | null;
+  appointment_type: DbAppointmentType;
+  status: DbAppointmentStatus;
+  scheduled_at: string;
+  telehealth_room_url: string | null;
+  chief_complaint: string | null;
+  created_at: string;
+}
+
+export interface ClaimRow {
+  id: string;
+  claim_number: string;
+  patient_id: string | null;
+  provider_id: string | null;
+  payer_organization_id: string | null;
+  service_date: string;
+  total_billed: number;
+  approved_amount: number;
+  patient_copay: number;
+  status: DbClaimStatus;
+  icd10_codes: string[];
+  cpt_codes: string[];
+  ai_risk_score: number;
+  ai_risk_flags: string[];
+  created_at: string;
+}
+
+export interface PrescriptionRow {
+  id: string;
+  patient_id: string | null;
+  provider_id: string | null;
+  organization_id: string | null;
+  medication_name: string;
+  dosage: string;
+  frequency: string;
+  refills_remaining: number;
+  status: DbRxStatus;
+  pharmacy_name: string | null;
+  created_at: string;
+}
+
+export interface PriorAuthorizationRow {
+  id: string;
+  patient_id: string | null;
+  provider_id: string | null;
+  organization_id: string | null;
+  requested_service: string;
+  icd10_code: string;
+  cpt_code: string;
+  status: DbPriorAuthStatus;
+  clinical_notes: string | null;
+  ai_recommendation: string | null;
+  created_at: string;
+}
+
+export interface LabResultRow {
+  id: string;
+  patient_id: string | null;
+  ordering_provider_id: string | null;
+  organization_id: string | null;
+  loinc_code: string;
+  test_name: string;
+  result_value: string;
+  reference_range: string | null;
+  status: string;
+  result_date: string;
+}
+
+export interface AuditLogRow {
+  id: string;
+  organization_id: string | null;
+  actor_id: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  details: string | null;
+  ip_address: string | null;
+  timestamp: string;
+}
+
+// Insert payloads: id/created_at/defaults are DB-generated, so omit them.
+export type OrganizationInsert = Omit<OrganizationRow, 'id' | 'created_at' | 'updated_at'>;
+export type AppointmentInsert = Omit<AppointmentRow, 'id' | 'created_at'>;
+export type PriorAuthorizationInsert = Omit<PriorAuthorizationRow, 'id' | 'created_at'>;
+export type AuditLogInsert = Omit<AuditLogRow, 'id' | 'timestamp'>;
+
+/** Table-name → row-type registry (handy for generic helpers/tests). */
+export interface Database {
+  organizations: OrganizationRow;
+  users: UserRow;
+  patients: PatientRow;
+  providers: ProviderRow;
+  appointments: AppointmentRow;
+  claims: ClaimRow;
+  prescriptions: PrescriptionRow;
+  prior_authorizations: PriorAuthorizationRow;
+  lab_results: LabResultRow;
+  audit_logs: AuditLogRow;
+}
+
+export type TableName = keyof Database;
