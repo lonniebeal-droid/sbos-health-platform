@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createRepositories } from '../lib/repositories';
 import { createAuthService } from '../lib/services/authService';
 import { createOrganizationService } from '../lib/services/organizationService';
+import { createEligibilityService } from '../lib/services/eligibilityService';
 
 // ---- Minimal fake Supabase query builder ----
 // Records the chained operations and resolves to a caller-supplied result. The
@@ -109,5 +110,30 @@ describe('authService', () => {
       getUser: async () => ({ data: { user: null }, error: { message: 'no session' } }),
     }));
     expect(await svc.getAuthUser()).toBeNull();
+  });
+});
+
+describe('eligibilityService', () => {
+  it('calls the check_eligibility RPC and returns the coverage summary', async () => {
+    let seenArgs: unknown;
+    const client = {
+      rpc: async (_fn: string, args: unknown) => {
+        seenArgs = args;
+        return { data: { status: 'ACTIVE_ELIGIBLE', memberId: 'M1', planName: 'Gold PPO' }, error: null };
+      },
+    } as unknown as SupabaseClient;
+    const svc = createEligibilityService(client);
+    const r = await svc.check('M1');
+    expect(seenArgs).toEqual({ p_member_id: 'M1' });
+    expect(r.status).toBe('ACTIVE_ELIGIBLE');
+    expect(r.planName).toBe('Gold PPO');
+  });
+
+  it('throws the RPC error message', async () => {
+    const client = {
+      rpc: async () => ({ data: null, error: { message: 'Not authorized for eligibility inquiry' } }),
+    } as unknown as SupabaseClient;
+    const svc = createEligibilityService(client);
+    await expect(svc.check('M1')).rejects.toThrow('Not authorized');
   });
 });

@@ -1,44 +1,63 @@
 import React, { useState } from 'react';
 import { samplePatient } from '../../data/mockData';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getEligibilityService } from '../../lib/services/eligibilityService';
 import { ShieldCheck, Search, CheckCircle2, DollarSign, Clock, RefreshCw } from 'lucide-react';
+
+const DEMO_ELIGIBILITY = {
+  status: 'ACTIVE_ELIGIBLE',
+  planName: 'SBOS Gold Premier PPO',
+  subscriberName: samplePatient.name,
+  effectiveDate: '2026-01-01',
+  deductibleTotal: 500.0,
+  deductibleRemaining: 150.0,
+  outOfPocketMax: 3000.0,
+  copayPrimaryCare: 20.0,
+  copaySpecialist: 40.0,
+  copayTelehealth: 20.0,
+  coInsurancePercent: 10,
+};
 
 export const EligibilityVerifier: React.FC = () => {
   const [memberId, setMemberId] = useState(samplePatient.insuranceId);
   const [payerName, setPayerName] = useState('SBOS Gold Premier PPO (Payer ID #94882)');
   const [serviceType, setServiceType] = useState('30 (Health Benefit Plan Coverage)');
   const [isVerifying, setIsVerifying] = useState(false);
-  const [eligibilityResult, setEligibilityResult] = useState<any>({
-    status: 'ACTIVE_ELIGIBLE',
-    planName: 'SBOS Gold Premier PPO',
-    subscriberName: samplePatient.name,
-    effectiveDate: '2026-01-01',
-    deductibleTotal: 500.00,
-    deductibleRemaining: 150.00,
-    outOfPocketMax: 3000.00,
-    copayPrimaryCare: 20.00,
-    copaySpecialist: 40.00,
-    copayTelehealth: 20.00,
-    coInsurancePercent: 10
-  });
+  const [error, setError] = useState<string | null>(null);
+  const [eligibilityResult, setEligibilityResult] = useState<any>(DEMO_ELIGIBILITY);
 
   const handleCheckEligibility = async () => {
     setIsVerifying(true);
-    setTimeout(() => {
-      setEligibilityResult({
-        status: 'ACTIVE_ELIGIBLE',
-        planName: 'SBOS Gold Premier PPO',
-        subscriberName: samplePatient.name,
-        effectiveDate: '2026-01-01',
-        deductibleTotal: 500.00,
-        deductibleRemaining: 150.00,
-        outOfPocketMax: 3000.00,
-        copayPrimaryCare: 20.00,
-        copaySpecialist: 40.00,
-        copayTelehealth: 20.00,
-        coInsurancePercent: 10
-      });
+    setError(null);
+    if (!isSupabaseConfigured) {
+      setTimeout(() => { setEligibilityResult(DEMO_ELIGIBILITY); setIsVerifying(false); }, 800);
+      return;
+    }
+    try {
+      const r = await getEligibilityService().check(memberId);
+      if (r.status === 'INACTIVE_NOT_FOUND') {
+        setError(`No active coverage found for member ${memberId}.`);
+        setEligibilityResult(null);
+      } else {
+        setEligibilityResult({
+          status: r.status,
+          planName: r.planName ?? 'Unknown Plan',
+          subscriberName: r.subscriberName ?? '—',
+          effectiveDate: r.effectiveDate ?? '—',
+          deductibleTotal: r.deductibleTotal ?? 0,
+          deductibleRemaining: r.deductibleRemaining ?? 0,
+          outOfPocketMax: r.outOfPocketMax ?? 0,
+          copayPrimaryCare: r.copays?.primaryCare ?? 0,
+          copaySpecialist: r.copays?.specialist ?? 0,
+          copayTelehealth: r.copays?.primaryCare ?? 0,
+          coInsurancePercent: 10,
+        });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Eligibility inquiry failed');
+    } finally {
       setIsVerifying(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -103,6 +122,12 @@ export const EligibilityVerifier: React.FC = () => {
           {isVerifying ? <RefreshCw className="w-4 h-4 animate-spin text-teal-300" /> : <ShieldCheck className="w-4 h-4" />}
           {isVerifying ? 'Pinging Clearinghouse 270...' : 'Execute 270 Real-Time Eligibility Query'}
         </button>
+
+        {error && (
+          <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-700 dark:text-rose-300">
+            {error}
+          </div>
+        )}
 
         {eligibilityResult && (
           <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-4">
