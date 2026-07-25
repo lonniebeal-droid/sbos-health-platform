@@ -25,6 +25,9 @@ scripts
 .idea
 .DS_Store
 
+# Agent worktrees (linked git worktrees created under .claude/)
+.claude
+
 # Test files
 src/tests
 **/*.test.ts
