@@ -13,7 +13,7 @@ import type { TenantOrg } from './organizationContext';
 import type {
   OrganizationRow, OrganizationInsert,
   UserRow,
-  PatientRow, PatientWithUser, ProviderRow,
+  PatientRow, PatientWithUser, ProviderRow, ProviderWithUser,
   AppointmentRow, AppointmentInsert, AppointmentWithNames, DbAppointmentStatus,
   ClaimRow, ClaimWithNames, DbClaimStatus,
   PrescriptionRow, PrescriptionWithProvider,
@@ -85,7 +85,15 @@ export function createRepositories(client: SupabaseClient) {
         );
       },
     },
-    providers: crud<ProviderRow>(client, 'providers'),
+    providers: {
+      ...crud<ProviderRow>(client, 'providers'),
+      /** Providers with a linked user (name fallback) for the directory. */
+      async listDetailed(): Promise<ProviderWithUser[]> {
+        return unwrap<ProviderWithUser[]>(
+          await client.from('providers').select('*, user:users(full_name)').order('rating', { ascending: false }),
+        );
+      },
+    },
     labResults: crud<LabResultRow>(client, 'lab_results', 'result_date'),
 
     appointments: {

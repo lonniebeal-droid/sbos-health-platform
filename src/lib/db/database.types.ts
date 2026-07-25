@@ -98,7 +98,23 @@ export interface ProviderRow {
   license_number: string;
   accepting_new_patients: boolean;
   consultation_fee: number;
+  full_name: string | null;
+  rating: number;
+  review_count: number;
+  in_network: boolean;
+  hospital_affiliation: string | null;
+  address: string | null;
+  phone: string | null;
+  next_available_slot: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  education: string | null;
   created_at: string;
+}
+
+/** A provider row with its linked user profile (name fallback). */
+export interface ProviderWithUser extends ProviderRow {
+  user: { full_name: string } | null;
 }
 
 export interface AppointmentRow {

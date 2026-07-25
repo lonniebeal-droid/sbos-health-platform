@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan, mapProvider } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -236,5 +236,32 @@ describe('mapBenefitsPlan', () => {
   it('defaults copays when missing', () => {
     const p = mapBenefitsPlan({ ...row, copays: {} as BenefitsPlanRow['copays'] });
     expect(p.copays.primaryCare).toBe(0);
+  });
+});
+
+describe('mapProvider', () => {
+  const row: ProviderWithUser = {
+    id: 'prov-1', user_id: 'u-1', organization_id: 'org-1', npi: '1982736410',
+    specialty: 'Internal Medicine', license_number: 'CA-MD-1', accepting_new_patients: true,
+    consultation_fee: 175, full_name: 'Dr. James Wilson, MD', rating: 4.9, review_count: 184,
+    in_network: true, hospital_affiliation: 'Stanford', address: '500 Parnassus Ave',
+    phone: '(415) 555-0192', next_available_slot: 'Tomorrow at 10:00 AM', avatar_url: null,
+    bio: 'Board-certified internist.', education: 'Harvard Medical School', created_at: '2026-01-01T00:00:00Z',
+    user: { full_name: 'Dr. James Wilson' },
+  };
+
+  it('prefers denormalized full_name and maps directory fields', () => {
+    const p = mapProvider(row);
+    expect(p.name).toBe('Dr. James Wilson, MD');
+    expect(p.rating).toBe(4.9);
+    expect(p.reviewCount).toBe(184);
+    expect(p.inNetwork).toBe(true);
+    expect(p.acceptsNewPatients).toBe(true);
+    expect(p.hospitalAffiliation).toBe('Stanford');
+  });
+
+  it('falls back to the joined user name', () => {
+    const p = mapProvider({ ...row, full_name: null });
+    expect(p.name).toBe('Dr. James Wilson');
   });
 });

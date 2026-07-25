@@ -39,9 +39,26 @@ INSERT INTO auth.identities (
 ON CONFLICT DO NOTHING;
 
 -- Domain rows (profiles were auto-created by the trigger above).
-INSERT INTO public.providers (id, user_id, organization_id, npi, specialty, license_number, accepting_new_patients, consultation_fee)
-VALUES ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
-        '1982736410', 'Internal Medicine & Primary Care', 'CA-MD-88213', true, 175.00)
+INSERT INTO public.providers (id, user_id, organization_id, npi, specialty, license_number, accepting_new_patients, consultation_fee, full_name, rating, review_count, in_network, hospital_affiliation, address, phone, next_available_slot, bio, education)
+VALUES
+  ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   '1982736410', 'Internal Medicine & Primary Care', 'CA-MD-88213', true, 175.00,
+   'Dr. James Wilson, MD', 4.9, 184, true, 'Stanford Health Care / SBOS Medical Center',
+   '500 Parnassus Ave, Suite 300, San Francisco, CA', '(415) 555-0192', 'Tomorrow at 10:00 AM',
+   'Board-certified internist with 14 years of experience in preventive health and chronic disease management.',
+   'Harvard Medical School (MD), Residency at Johns Hopkins Hospital'),
+  ('b0000000-0000-0000-0000-000000000002', NULL, '11111111-1111-1111-1111-111111111111',
+   '1482930192', 'Behavioral Health & Clinical Psychology', 'CA-PSY-40192', true, 160.00,
+   'Dr. Amara Patel, PsyD', 5.0, 230, true, 'SBOS Mind Care Center',
+   '120 Montgomery St, San Francisco, CA', '(415) 555-0841', 'Friday at 2:30 PM',
+   'Specializes in CBT, stress resilience, and evidence-based mental healthcare for working professionals.',
+   'Stanford University (PsyD in Clinical Psychology)'),
+  ('b0000000-0000-0000-0000-000000000003', NULL, '11111111-1111-1111-1111-111111111111',
+   '1839201948', 'Cardiology & Vascular Health', 'CA-MD-19483', true, 220.00,
+   'Dr. Chloe Bennett, MD', 4.8, 142, true, 'UCSF Medical Center',
+   '400 Castro St, San Francisco, CA', '(415) 555-0482', 'Monday at 9:00 AM',
+   'Fellowship-trained cardiologist focusing on preventive cardiology, lipidology, and non-invasive cardiac imaging.',
+   'Columbia University Vagelos College of Physicians and Surgeons')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.patients (id, user_id, organization_id, dob, gender, address, insurance_member_id, policy_group_number, blood_type, allergies, chronic_conditions, recent_vitals, family_members, primary_care_physician)

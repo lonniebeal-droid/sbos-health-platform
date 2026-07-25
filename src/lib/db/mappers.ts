@@ -8,8 +8,29 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow } from './database.types';
+import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser } from './database.types';
+
+/** ProviderWithUser -> the UI Provider (directory) domain type. */
+export function mapProvider(row: ProviderWithUser): Provider {
+  return {
+    id: row.id,
+    name: row.full_name ?? row.user?.full_name ?? 'Unknown Provider',
+    specialty: row.specialty,
+    npi: row.npi,
+    rating: row.rating ?? 0,
+    reviewCount: row.review_count ?? 0,
+    inNetwork: row.in_network ?? true,
+    hospitalAffiliation: row.hospital_affiliation ?? '',
+    address: row.address ?? '',
+    phone: row.phone ?? '',
+    nextAvailableSlot: row.next_available_slot ?? 'Contact office',
+    avatar: row.avatar_url ?? '',
+    acceptsNewPatients: row.accepting_new_patients,
+    bio: row.bio ?? '',
+    education: row.education ?? '',
+  };
+}
 
 /** BenefitsPlanRow -> the UI BenefitsPlan domain type. */
 export function mapBenefitsPlan(row: BenefitsPlanRow): BenefitsPlan {

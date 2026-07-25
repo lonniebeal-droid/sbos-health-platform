@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { sampleProviders, sampleAppointments } from '../../data/mockData';
 import { Provider, Appointment } from '../../types';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapProvider } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
 import { Search, MapPin, Star, Calendar, Clock, Video, CheckCircle, Stethoscope, ChevronRight, Filter } from 'lucide-react';
 
 interface ProviderSearchProps {
@@ -22,7 +26,14 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
 
   const specialties = ['All', 'Internal Medicine', 'Behavioral Health', 'Cardiology'];
 
-  const filteredProviders = sampleProviders.filter((p) => {
+  const { data: realProviders } = useAsync<Provider[]>(
+    async () => (await getRepositories().providers.listDetailed()).map(mapProvider),
+    isSupabaseConfigured,
+  );
+  const providers: Provider[] =
+    isSupabaseConfigured && realProviders && realProviders.length > 0 ? realProviders : sampleProviders;
+
+  const filteredProviders = providers.filter((p) => {
     const matchesQuery = p.name.toLowerCase().includes(query.toLowerCase()) ||
       p.specialty.toLowerCase().includes(query.toLowerCase());
     const matchesSpecialty = selectedSpecialty === 'All' || p.specialty.includes(selectedSpecialty);
