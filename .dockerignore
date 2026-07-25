@@ -1,0 +1,30 @@
+# Keep the Docker build context small and reproducible: dependencies and build
+# output are produced inside the image, and VCS/docs/infra files are not needed.
+node_modules
+dist
+server.cjs
+
+.git
+.github
+.gitignore
+
+# Local env / secrets — never bake into an image
+.env
+.env.*
+!.env.example
+
+# Markdown & infra (not needed at build/runtime).
+# NOTE: the `docs/` dir is intentionally NOT ignored — server.ts serves
+# docs/openapi.json at /api/docs/openapi.json.
+*.md
+terraform
+scripts
+
+# Editor / OS cruft
+.vscode
+.idea
+.DS_Store
+
+# Test files
+src/tests
+**/*.test.ts
