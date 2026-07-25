@@ -65,10 +65,47 @@ VALUES ('e0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-0000000
         'Walgreens Pharmacy - #1402 Castro St')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.claims (id, claim_number, patient_id, provider_id, payer_organization_id, service_date, total_billed, approved_amount, patient_copay, status, icd10_codes, cpt_codes, ai_risk_score, ai_risk_flags)
+INSERT INTO public.prior_authorizations (id, patient_id, provider_id, organization_id, requested_service, icd10_code, cpt_code, status, clinical_notes, ai_recommendation)
+VALUES
+  ('aa000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   'Cardiac MRI with Contrast', 'I25.10', '75561', 'approved',
+   'Persistent atypical angina despite medication; prior echo showed minor ejection fraction variance.',
+   'Approve: documentation meets InterQual criteria for chest pain evaluation with inconclusive EKG.'),
+  ('aa000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   'Intensive Outpatient Therapy (IOP)', 'F41.1', '90837', 'pending',
+   'Weekly CBT showed moderate gains; step-up intensive care requested to avoid hospital admission.',
+   'Recommend approval: GAD refractory to 12 weeks standard weekly therapy.')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.medical_records (id, patient_id, organization_id, record_date, type, title, doctor, facility, summary, status)
+VALUES
+  ('ab000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   '2026-07-15', 'Lab Result', 'Comprehensive Metabolic Panel & Lipid Profile', 'Dr. James Wilson, MD', 'SBOS Diagnostic Labs',
+   'Total Cholesterol: 185 mg/dL (Normal). Fasting Glucose: 92 mg/dL (Normal). Electrolytes within optimal ranges.', 'normal'),
+  ('ab000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   '2026-06-10', 'Immunization', 'Tdap Booster & Annual Influenza Vaccine', 'Dr. James Wilson, MD', 'Primary Care Network Clinic',
+   'Administered in left deltoid. No adverse reaction observed during 15-min post-vaccine monitoring window.', 'normal')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.benefits_plans (id, patient_id, organization_id, plan_id, plan_name, network_type, individual_deductible, deductible_met, out_of_pocket_max, out_of_pocket_met, copays)
+VALUES ('ac000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+        'SBOS-GOLD-PPO-2026', 'Gold Premier PPO Health Plan', 'PPO', 1500.00, 1250.00, 4500.00, 1680.00,
+        '{"primaryCare":20,"specialist":45,"urgentCare":50,"emergencyRoom":250,"genericRx":10}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.claims (id, claim_number, patient_id, provider_id, payer_organization_id, organization_id, patient_name, provider_name, provider_npi, service_date, total_billed, approved_amount, patient_copay, status, icd10_codes, cpt_codes, ai_risk_score, ai_risk_flags, plain_english_explanation)
 VALUES ('f0000000-0000-0000-0000-000000000001', 'CLM-2026-884102', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001',
-        '22222222-2222-2222-2222-222222222222', '2026-07-10', 1250.00, 1100.00, 30.00, 'paid',
-        '["R07.9","I10"]'::jsonb, '["71250","99214"]'::jsonb, 4, '[]'::jsonb)
+        '22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Sarah Jenkins', 'Dr. James Wilson', '1982736410', '2026-07-10', 1250.00, 1100.00, 30.00, 'paid',
+        '["R07.9","I10"]'::jsonb, '["71250","99214"]'::jsonb, 4, '[]'::jsonb,
+        'Chest CT scan and routine outpatient consultation. Covered at 90% in-network tier. You owe a flat $30 copay.')
+ON CONFLICT (id) DO NOTHING;
+
+-- A second claim (in review) so the payer/provider views show multiple rows.
+INSERT INTO public.claims (id, claim_number, patient_id, provider_id, payer_organization_id, organization_id, patient_name, provider_name, provider_npi, service_date, total_billed, approved_amount, patient_copay, status, icd10_codes, cpt_codes, ai_risk_score, ai_risk_flags, plain_english_explanation)
+VALUES ('f0000000-0000-0000-0000-000000000002', 'CLM-2026-992144', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001',
+        '22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Sarah Jenkins', 'Dr. James Wilson', '1982736410', '2026-07-18', 840.00, 0.00, 40.00, 'in_review',
+        '["M25.561"]'::jsonb, '["99203","73560"]'::jsonb, 12, '["Minor code combination query"]'::jsonb,
+        'Knee evaluation and X-Ray. Currently undergoing automated adjudication. Estimated copay $40.')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.audit_logs (organization_id, actor_id, action, resource_type, resource_id, ip_address)

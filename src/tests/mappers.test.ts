@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12 } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -122,5 +122,119 @@ describe('mapAppointment', () => {
 
   it('maps non-telehealth types to in_person', () => {
     expect(mapAppointment({ ...row, appointment_type: 'specialist' }).type).toBe('in_person');
+  });
+});
+
+describe('mapClaim', () => {
+  const row: ClaimWithNames = {
+    id: 'clm-1', claim_number: 'CLM-2026-884102', patient_id: 'pat-1', provider_id: 'prov-1',
+    payer_organization_id: 'org-2', organization_id: 'org-1', service_date: '2026-07-10',
+    total_billed: 1250, approved_amount: 1100, patient_copay: 30, status: 'paid',
+    icd10_codes: ['R07.9', 'I10'], cpt_codes: ['71250', '99214'], ai_risk_score: 4, ai_risk_flags: [],
+    plain_english_explanation: 'Covered at 90%.',
+    patient_name: null, provider_name: null, provider_npi: null,
+    created_at: '2026-07-11T00:00:00Z',
+    patient: { user: { full_name: 'Sarah Jenkins' } },
+    provider: { npi: '1982736410', user: { full_name: 'Dr. James Wilson' } },
+  };
+
+  it('maps names, NPI, amounts, codes, and explanation via join', () => {
+    const c = mapClaim(row);
+    expect(c.patientName).toBe('Sarah Jenkins');
+    expect(c.providerName).toBe('Dr. James Wilson');
+    expect(c.providerNpi).toBe('1982736410');
+    expect(c.planCoveredAmount).toBe(1100);
+    expect(c.patientResponsibility).toBe(30);
+    expect(c.diagnosisCodes).toEqual(['R07.9', 'I10']);
+    expect(c.submittedDate).toBe('2026-07-11');
+    expect(c.plainEnglishExplanation).toBe('Covered at 90%.');
+  });
+
+  it('degrades gracefully when joins are missing', () => {
+    const c = mapClaim({ ...row, patient: null, provider: null, plain_english_explanation: null });
+    expect(c.patientName).toBe('Unknown Patient');
+    expect(c.providerNpi).toBe('');
+    expect(c.plainEnglishExplanation).toBe('');
+  });
+
+  it('prefers denormalized names (payer view, no cross-org join)', () => {
+    const c = mapClaim({
+      ...row, patient: null, provider: null,
+      patient_name: 'Sarah Jenkins', provider_name: 'Dr. James Wilson', provider_npi: '1982736410',
+    });
+    expect(c.patientName).toBe('Sarah Jenkins');
+    expect(c.providerName).toBe('Dr. James Wilson');
+    expect(c.providerNpi).toBe('1982736410');
+  });
+});
+
+describe('mapPriorAuth', () => {
+  const row: PriorAuthorizationWithNames = {
+    id: 'aa000000-1111-2222-3333-444455556666', patient_id: 'pat-1', provider_id: 'prov-1',
+    organization_id: 'org-1', requested_service: 'Cardiac MRI with Contrast',
+    icd10_code: 'I25.10', cpt_code: '75561', status: 'approved',
+    clinical_notes: 'Persistent atypical angina.', ai_recommendation: 'Approve: meets InterQual.',
+    created_at: '2026-07-21T00:00:00Z',
+    patient: { user: { full_name: 'Sarah Jenkins' } },
+    provider: { user: { full_name: 'Dr. Chloe Bennett' } },
+  };
+
+  it('maps names, codes, status, notes, and derives an auth number', () => {
+    const p = mapPriorAuth(row);
+    expect(p.patientName).toBe('Sarah Jenkins');
+    expect(p.requestingProvider).toBe('Dr. Chloe Bennett');
+    expect(p.requestedService).toBe('Cardiac MRI with Contrast');
+    expect(p.cptCode).toBe('75561');
+    expect(p.status).toBe('approved');
+    expect(p.aiRecommendation).toBe('Approve: meets InterQual.');
+    expect(p.authNumber).toBe('PA-AA000000');
+  });
+
+  it('degrades gracefully when joins are missing', () => {
+    const p = mapPriorAuth({ ...row, patient: null, provider: null });
+    expect(p.patientName).toBe('Unknown Patient');
+    expect(p.requestingProvider).toBeUndefined();
+  });
+});
+
+describe('mapMedicalRecord', () => {
+  const row: MedicalRecordRow = {
+    id: 'rec-1', patient_id: 'pat-1', organization_id: 'org-1', record_date: '2026-07-15',
+    type: 'Lab Result', title: 'CMP & Lipid Profile', doctor: 'Dr. James Wilson, MD',
+    facility: 'SBOS Diagnostic Labs', summary: 'All within range.', status: 'normal',
+    file_url: null, created_at: '2026-07-15T00:00:00Z',
+  };
+
+  it('maps record fields to the domain type', () => {
+    const r = mapMedicalRecord(row);
+    expect(r.type).toBe('Lab Result');
+    expect(r.title).toBe('CMP & Lipid Profile');
+    expect(r.doctor).toBe('Dr. James Wilson, MD');
+    expect(r.date).toBe('2026-07-15');
+    expect(r.status).toBe('normal');
+    expect(r.fileUrl).toBeUndefined();
+  });
+});
+
+describe('mapBenefitsPlan', () => {
+  const row: BenefitsPlanRow = {
+    id: 'bp-1', patient_id: 'pat-1', organization_id: 'org-1',
+    plan_id: 'SBOS-GOLD-PPO-2026', plan_name: 'Gold Premier PPO', network_type: 'PPO',
+    individual_deductible: 1500, deductible_met: 1250, out_of_pocket_max: 4500, out_of_pocket_met: 1680,
+    copays: { primaryCare: 20, specialist: 45, urgentCare: 50, emergencyRoom: 250, genericRx: 10 },
+    created_at: '2026-01-01T00:00:00Z',
+  };
+
+  it('maps plan fields and copays', () => {
+    const p = mapBenefitsPlan(row);
+    expect(p.planId).toBe('SBOS-GOLD-PPO-2026');
+    expect(p.networkType).toBe('PPO');
+    expect(p.individualDeductible).toBe(1500);
+    expect(p.copays.specialist).toBe(45);
+  });
+
+  it('defaults copays when missing', () => {
+    const p = mapBenefitsPlan({ ...row, copays: {} as BenefitsPlanRow['copays'] });
+    expect(p.copays.primaryCare).toBe(0);
   });
 });

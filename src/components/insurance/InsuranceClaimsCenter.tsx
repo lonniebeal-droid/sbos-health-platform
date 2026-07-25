@@ -1,20 +1,49 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { sampleClaims, samplePriorAuths } from '../../data/mockData';
-import { Claim, PriorAuth } from '../../types';
+import { Claim, PriorAuth, ClaimStatus } from '../../types';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapClaim } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
 import { ShieldAlert, CheckCircle2, XCircle, Clock, Sparkles, AlertTriangle, FileText, Filter, ChevronRight, DollarSign, Activity } from 'lucide-react';
 
 export const InsuranceClaimsCenter: React.FC = () => {
-  const [claims, setClaims] = useState<Claim[]>(sampleClaims);
-  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(sampleClaims[0]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, ClaimStatus>>({});
   const [isAnalyzingFwa, setIsAnalyzingFwa] = useState(false);
   const [fwaResult, setFwaResult] = useState<any>(null);
 
-  const handleAdjudicate = (id: string, newStatus: 'approved' | 'denied') => {
-    setClaims((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: newStatus === 'approved' ? 'paid' : 'denied' } : c))
-    );
-    if (selectedClaim?.id === id) {
-      setSelectedClaim((prev) => prev ? { ...prev, status: newStatus === 'approved' ? 'paid' : 'denied' } : null);
+  const { data: realClaims } = useAsync<Claim[]>(
+    async () => (await getRepositories().claims.listDetailed()).map(mapClaim),
+    isSupabaseConfigured,
+  );
+  const usingLive = isSupabaseConfigured && !!realClaims && realClaims.length > 0;
+  const baseClaims: Claim[] = usingLive ? (realClaims as Claim[]) : sampleClaims;
+  const claims: Claim[] = baseClaims.map((c) =>
+    statusOverrides[c.id] ? { ...c, status: statusOverrides[c.id] } : c,
+  );
+  const selectedClaim = claims.find((c) => c.id === selectedId) ?? claims[0] ?? null;
+
+  useEffect(() => {
+    if (!selectedId || !claims.some((c) => c.id === selectedId)) {
+      setSelectedId(claims[0]?.id ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claims]);
+
+  const handleAdjudicate = async (id: string, newStatus: 'approved' | 'denied') => {
+    const status: ClaimStatus = newStatus === 'approved' ? 'paid' : 'denied';
+    setStatusOverrides((prev) => ({ ...prev, [id]: status }));
+    if (usingLive) {
+      try {
+        await getRepositories().claims.updateStatus(id, status);
+      } catch {
+        setStatusOverrides((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
     }
   };
 
@@ -74,7 +103,7 @@ export const InsuranceClaimsCenter: React.FC = () => {
               <div
                 key={claim.id}
                 onClick={() => {
-                  setSelectedClaim(claim);
+                  setSelectedId(claim.id);
                   setFwaResult(null);
                 }}
                 className={`p-4 rounded-2xl border transition-all cursor-pointer ${

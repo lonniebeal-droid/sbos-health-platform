@@ -1,11 +1,24 @@
 import React, { useState } from 'react';
 import { sampleBenefitsPlan } from '../../data/mockData';
+import { BenefitsPlan } from '../../types';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapBenefitsPlan } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
 import { Shield, Sparkles, Search, CheckCircle2, HelpCircle, ArrowRight, DollarSign, Activity, Percent } from 'lucide-react';
 
 export const BenefitsExplainer: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+
+  // Load the member's real benefits plan (RLS-scoped); fall back to demo data.
+  const { data: realPlans } = useAsync<BenefitsPlan[]>(
+    async () => (await getRepositories().benefitsPlans.list()).map(mapBenefitsPlan),
+    isSupabaseConfigured,
+  );
+  const plan: BenefitsPlan =
+    isSupabaseConfigured && realPlans && realPlans.length > 0 ? realPlans[0] : sampleBenefitsPlan;
 
   const sampleCoverageList = [
     { service: 'Primary Care Visit', covered: true, details: '$20 copay per visit (In-Network)', category: 'Doctor Visits' },
@@ -45,8 +58,8 @@ export const BenefitsExplainer: React.FC = () => {
     }
   };
 
-  const deductiblePercent = Math.min(100, Math.round((sampleBenefitsPlan.deductibleMet / sampleBenefitsPlan.individualDeductible) * 100));
-  const oopPercent = Math.min(100, Math.round((sampleBenefitsPlan.outOfPocketMet / sampleBenefitsPlan.outOfPocketMax) * 100));
+  const deductiblePercent = Math.min(100, Math.round((plan.deductibleMet / plan.individualDeductible) * 100));
+  const oopPercent = Math.min(100, Math.round((plan.outOfPocketMet / plan.outOfPocketMax) * 100));
 
   return (
     <div className="space-y-6">
@@ -56,9 +69,9 @@ export const BenefitsExplainer: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <span className="text-xs font-bold font-mono px-3 py-1 rounded-full bg-teal-400/20 text-teal-300 border border-teal-400/30">
-              ACTIVE POLICY: {sampleBenefitsPlan.planId}
+              ACTIVE POLICY: {plan.planId}
             </span>
-            <h2 className="text-2xl font-extrabold mt-2">{sampleBenefitsPlan.planName}</h2>
+            <h2 className="text-2xl font-extrabold mt-2">{plan.planName}</h2>
             <p className="text-xs text-teal-100 mt-1">
               Comprehensive medical, mental health, prescription, and emergency coverage.
             </p>
@@ -81,7 +94,7 @@ export const BenefitsExplainer: React.FC = () => {
             <div className="flex justify-between text-xs">
               <span className="font-medium text-slate-200">Individual Deductible</span>
               <span className="font-mono font-bold text-teal-300">
-                ${sampleBenefitsPlan.deductibleMet} / ${sampleBenefitsPlan.individualDeductible}
+                ${plan.deductibleMet} / ${plan.individualDeductible}
               </span>
             </div>
             <div className="w-full bg-black/30 h-3 rounded-full overflow-hidden p-0.5">
@@ -91,7 +104,7 @@ export const BenefitsExplainer: React.FC = () => {
               />
             </div>
             <p className="text-[10px] text-teal-200 text-right font-medium">
-              ${sampleBenefitsPlan.individualDeductible - sampleBenefitsPlan.deductibleMet} remaining until 100% coverage
+              ${plan.individualDeductible - plan.deductibleMet} remaining until 100% coverage
             </p>
           </div>
 
@@ -100,7 +113,7 @@ export const BenefitsExplainer: React.FC = () => {
             <div className="flex justify-between text-xs">
               <span className="font-medium text-slate-200">Out-of-Pocket Maximum</span>
               <span className="font-mono font-bold text-blue-300">
-                ${sampleBenefitsPlan.outOfPocketMet} / ${sampleBenefitsPlan.outOfPocketMax}
+                ${plan.outOfPocketMet} / ${plan.outOfPocketMax}
               </span>
             </div>
             <div className="w-full bg-black/30 h-3 rounded-full overflow-hidden p-0.5">

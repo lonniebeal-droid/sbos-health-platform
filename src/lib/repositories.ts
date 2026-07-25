@@ -15,10 +15,12 @@ import type {
   UserRow,
   PatientRow, PatientWithUser, ProviderRow,
   AppointmentRow, AppointmentInsert, AppointmentWithNames, DbAppointmentStatus,
-  ClaimRow, DbClaimStatus,
+  ClaimRow, ClaimWithNames, DbClaimStatus,
   PrescriptionRow, PrescriptionWithProvider,
-  PriorAuthorizationRow, PriorAuthorizationInsert, DbPriorAuthStatus,
+  PriorAuthorizationRow, PriorAuthorizationInsert, PriorAuthorizationWithNames, DbPriorAuthStatus,
   LabResultRow,
+  MedicalRecordRow,
+  BenefitsPlanRow,
   AuditLogRow, AuditLogInsert,
 } from './db/database.types';
 
@@ -68,6 +70,9 @@ export function createRepositories(client: SupabaseClient) {
       },
     },
 
+    medicalRecords: crud<MedicalRecordRow>(client, 'medical_records', 'record_date'),
+    benefitsPlans: crud<BenefitsPlanRow>(client, 'benefits_plans', 'created_at'),
+
     patients: {
       ...crud<PatientRow>(client, 'patients'),
       /** Patients with their linked user profile (name/email/phone). */
@@ -108,6 +113,15 @@ export function createRepositories(client: SupabaseClient) {
 
     claims: {
       ...crud<ClaimRow>(client, 'claims'),
+      /** Claims with patient + provider display names (and provider NPI). */
+      async listDetailed(): Promise<ClaimWithNames[]> {
+        return unwrap<ClaimWithNames[]>(
+          await client
+            .from('claims')
+            .select('*, patient:patients(user:users(full_name)), provider:providers(npi, user:users(full_name))')
+            .order('service_date', { ascending: false }),
+        );
+      },
       async updateStatus(id: string, status: DbClaimStatus): Promise<ClaimRow> {
         return unwrap<ClaimRow>(
           await client.from('claims').update({ status }).eq('id', id).select().single(),
@@ -137,6 +151,15 @@ export function createRepositories(client: SupabaseClient) {
 
     priorAuths: {
       ...crud<PriorAuthorizationRow>(client, 'prior_authorizations'),
+      /** Prior authorizations with patient + provider display names. */
+      async listDetailed(): Promise<PriorAuthorizationWithNames[]> {
+        return unwrap<PriorAuthorizationWithNames[]>(
+          await client
+            .from('prior_authorizations')
+            .select('*, patient:patients(user:users(full_name)), provider:providers(user:users(full_name))')
+            .order('created_at', { ascending: false }),
+        );
+      },
       async create(payload: PriorAuthorizationInsert): Promise<PriorAuthorizationRow> {
         return unwrap<PriorAuthorizationRow>(
           await client.from('prior_authorizations').insert(payload).select().single(),

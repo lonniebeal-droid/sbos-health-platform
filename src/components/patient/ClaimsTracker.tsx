@@ -1,16 +1,34 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { sampleClaims } from '../../data/mockData';
 import { Claim } from '../../types';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapClaim } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
 import { FileText, CheckCircle2, Clock, AlertTriangle, ChevronRight, Sparkles, DollarSign, Calendar, Building2 } from 'lucide-react';
 
 export const ClaimsTracker: React.FC = () => {
-  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(sampleClaims[0]);
+  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [filter, setFilter] = useState<string>('all');
 
-  const filteredClaims = sampleClaims.filter((c) => {
+  const { data: realClaims } = useAsync<Claim[]>(
+    async () => (await getRepositories().claims.listDetailed()).map(mapClaim),
+    isSupabaseConfigured,
+  );
+  const usingLive = isSupabaseConfigured && !!realClaims && realClaims.length > 0;
+  const claims: Claim[] = usingLive ? (realClaims as Claim[]) : sampleClaims;
+
+  const filteredClaims = claims.filter((c) => {
     if (filter === 'all') return true;
     return c.status === filter;
   });
+
+  useEffect(() => {
+    if (!selectedClaim || !claims.some((c) => c.id === selectedClaim.id)) {
+      setSelectedClaim(claims[0] ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claims]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {

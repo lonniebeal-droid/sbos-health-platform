@@ -120,6 +120,7 @@ export interface ClaimRow {
   patient_id: string | null;
   provider_id: string | null;
   payer_organization_id: string | null;
+  organization_id: string | null;
   service_date: string;
   total_billed: number;
   approved_amount: number;
@@ -129,7 +130,24 @@ export interface ClaimRow {
   cpt_codes: string[];
   ai_risk_score: number;
   ai_risk_flags: string[];
+  plain_english_explanation: string | null;
+  // Denormalized display identity (see 20260725020000_claims_visibility.sql).
+  patient_name: string | null;
+  provider_name: string | null;
+  provider_npi: string | null;
   created_at: string;
+}
+
+/** A claim with patient + provider display names and provider NPI. */
+export interface ClaimWithNames extends ClaimRow {
+  patient: { user: { full_name: string } | null } | null;
+  provider: { npi: string; user: { full_name: string } | null } | null;
+}
+
+/** A prior authorization with patient + provider display names. */
+export interface PriorAuthorizationWithNames extends PriorAuthorizationRow {
+  patient: { user: { full_name: string } | null } | null;
+  provider: { user: { full_name: string } | null } | null;
 }
 
 export interface PrescriptionRow {
@@ -173,6 +191,45 @@ export interface LabResultRow {
   result_date: string;
 }
 
+export type DbMedicalRecordType = 'Lab Result' | 'Immunization' | 'Visit Summary' | 'Imaging';
+export type DbMedicalRecordStatus = 'normal' | 'abnormal' | 'pending';
+
+export interface MedicalRecordRow {
+  id: string;
+  patient_id: string | null;
+  organization_id: string | null;
+  record_date: string;
+  type: DbMedicalRecordType;
+  title: string;
+  doctor: string | null;
+  facility: string | null;
+  summary: string | null;
+  status: DbMedicalRecordStatus;
+  file_url: string | null;
+  created_at: string;
+}
+
+export interface BenefitsPlanRow {
+  id: string;
+  patient_id: string | null;
+  organization_id: string | null;
+  plan_id: string;
+  plan_name: string;
+  network_type: 'PPO' | 'HMO' | 'EPO';
+  individual_deductible: number;
+  deductible_met: number;
+  out_of_pocket_max: number;
+  out_of_pocket_met: number;
+  copays: {
+    primaryCare: number;
+    specialist: number;
+    urgentCare: number;
+    emergencyRoom: number;
+    genericRx: number;
+  };
+  created_at: string;
+}
+
 export interface AuditLogRow {
   id: string;
   organization_id: string | null;
@@ -202,6 +259,8 @@ export interface Database {
   prescriptions: PrescriptionRow;
   prior_authorizations: PriorAuthorizationRow;
   lab_results: LabResultRow;
+  medical_records: MedicalRecordRow;
+  benefits_plans: BenefitsPlanRow;
   audit_logs: AuditLogRow;
 }
 

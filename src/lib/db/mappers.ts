@@ -8,8 +8,94 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription, Appointment } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames } from './database.types';
+import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow } from './database.types';
+
+/** BenefitsPlanRow -> the UI BenefitsPlan domain type. */
+export function mapBenefitsPlan(row: BenefitsPlanRow): BenefitsPlan {
+  return {
+    planId: row.plan_id,
+    planName: row.plan_name,
+    networkType: row.network_type,
+    individualDeductible: row.individual_deductible,
+    deductibleMet: row.deductible_met,
+    outOfPocketMax: row.out_of_pocket_max,
+    outOfPocketMet: row.out_of_pocket_met,
+    copays: {
+      primaryCare: row.copays?.primaryCare ?? 0,
+      specialist: row.copays?.specialist ?? 0,
+      urgentCare: row.copays?.urgentCare ?? 0,
+      emergencyRoom: row.copays?.emergencyRoom ?? 0,
+      genericRx: row.copays?.genericRx ?? 0,
+    },
+  };
+}
+
+/** MedicalRecordRow -> the UI MedicalRecord domain type. */
+export function mapMedicalRecord(row: MedicalRecordRow): MedicalRecord {
+  return {
+    id: row.id,
+    patientId: row.patient_id ?? '',
+    date: row.record_date,
+    type: row.type,
+    title: row.title,
+    doctor: row.doctor ?? '',
+    facility: row.facility ?? '',
+    summary: row.summary ?? '',
+    status: row.status,
+    fileUrl: row.file_url ?? undefined,
+  };
+}
+
+/** PriorAuthorizationWithNames -> the UI PriorAuth domain type. */
+export function mapPriorAuth(row: PriorAuthorizationWithNames): PriorAuth {
+  const providerName = row.provider?.user?.full_name ?? undefined;
+  const date = (row.created_at ?? '').slice(0, 10);
+  return {
+    id: row.id,
+    authNumber: `PA-${row.id.slice(0, 8).toUpperCase()}`,
+    patientId: row.patient_id ?? undefined,
+    patientName: row.patient?.user?.full_name ?? 'Unknown Patient',
+    requestingProvider: providerName,
+    providerName,
+    requestedService: row.requested_service,
+    serviceType: row.requested_service,
+    icd10Code: row.icd10_code,
+    icdCode: row.icd10_code,
+    cptCode: row.cpt_code,
+    status: row.status,
+    requestedDate: date,
+    submittedDate: date,
+    clinicalNotes: row.clinical_notes ?? undefined,
+    clinicalNotesSummary: row.clinical_notes ?? undefined,
+    aiRecommendation: row.ai_recommendation ?? undefined,
+  };
+}
+
+/** ClaimWithNames -> the UI Claim domain type. */
+export function mapClaim(row: ClaimWithNames): Claim {
+  return {
+    id: row.id,
+    claimNumber: row.claim_number,
+    patientId: row.patient_id ?? '',
+    // Prefer the denormalized identity carried on the claim (visible to the
+    // payer); fall back to the joined records (visible to same-org staff).
+    patientName: row.patient_name ?? row.patient?.user?.full_name ?? 'Unknown Patient',
+    providerName: row.provider_name ?? row.provider?.user?.full_name ?? 'Unknown Provider',
+    providerNpi: row.provider_npi ?? row.provider?.npi ?? '',
+    serviceDate: row.service_date,
+    submittedDate: (row.created_at ?? '').slice(0, 10),
+    diagnosisCodes: row.icd10_codes ?? [],
+    procedureCodes: row.cpt_codes ?? [],
+    totalBilled: row.total_billed,
+    planCoveredAmount: row.approved_amount,
+    patientResponsibility: row.patient_copay,
+    status: row.status,
+    aiRiskScore: row.ai_risk_score,
+    aiRiskFlags: row.ai_risk_flags ?? [],
+    plainEnglishExplanation: row.plain_english_explanation ?? '',
+  };
+}
 
 /** '14:30' (24h) -> '2:30 PM'. Pure/deterministic for testing. */
 export function formatTime24to12(hhmm: string): string {
