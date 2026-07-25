@@ -38,8 +38,6 @@ Priority: **P0** = blocks correctness/security · **P1** = blocks real features 
 
 | # | Item | Detail |
 |---|---|---|
-| 15 | **No real test runner** | *(In progress — adding Vitest.)* `api.test.ts` asserts nothing; no `test` script. |
-| 16 | **Broken CI workflow** | `.github/workflows/` has a corrupted `actions/node-清新@v3` step; two overlapping workflow files; tests not run. |
 | 17 | **Two package managers** | Both `bun.lock` and `package-lock.json` present. Pick one. |
 | 18 | **Project metadata** | `package.json` name `react-example`, version `0.0.0`. Rename/version it. |
 | 19 | **Monolithic `server.ts`** | ~500 lines; split into routers/services as real logic lands. |
@@ -50,6 +48,11 @@ Priority: **P0** = blocks correctness/security · **P1** = blocks real features 
 
 ## Resolved
 
+- 2026-07-25 — **Broken/redundant CI** (item 16). Removed the corrupted
+  `actions/node-清新@v3` step and the duplicate `deploy.yml`. Single `ci.yml` now
+  runs typecheck + tests + build on `actions/setup-node@v4`.
+- 2026-07-25 — **No real test runner** (item 15). Added Vitest; replaced the
+  fabricated `api.test.ts` (removed) with 14 real RBAC specs. `npm test` runs them.
 - 2026-07-24 — **Gemini model was hardcoded to a non-existent `gemini-3.6-flash`**
   (404 on every real call). Now configurable via `GEMINI_MODEL` (default
   `gemini-2.0-flash`) in `server.ts`; documented in `.env.example`.
