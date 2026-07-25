@@ -4,9 +4,9 @@ _Resume-here document. Regenerate/refresh at the end of each session._
 
 ## Snapshot
 - **Branch:** `phase-0-foundations`
-- **Handoff commit:** `af68b26` (a follow-up commit records this hash; the branch
-  tip may be that doc commit — always `git checkout phase-0-foundations` and
-  `git log -1`).
+- **Handoff docs commit:** `40c7649`. The branch tip is one follow-up commit ahead
+  (this hash record). Always `git checkout phase-0-foundations` and `git log -1`
+  for the exact tip.
 - **Tests:** 33 passing (`npm test`).
 - **Build:** passing (`npm run build`); typecheck clean (`npm run lint`).
 - **Commits this session:** 15 (+ handoff docs).
