@@ -25,10 +25,11 @@ export function createClinicalNotesService(client: SupabaseClient) {
       let providerId = opts?.providerId ?? null;
       if (!patientId) patientId = (await repos.patients.list())[0]?.id ?? null;
       if (!providerId) providerId = (await repos.providers.list())[0]?.id ?? null;
-      return repos.clinicalNotes.create({
+      const orgId = profile?.organization_id ?? null;
+      const note = await repos.clinicalNotes.create({
         patient_id: patientId,
         provider_id: providerId,
-        organization_id: profile?.organization_id ?? null,
+        organization_id: orgId,
         note_type: 'BIRP',
         content: {
           behavior: birp.behavior,
@@ -41,6 +42,22 @@ export function createClinicalNotesService(client: SupabaseClient) {
         status: 'signed',
         signed_at: new Date().toISOString(),
       });
+      // HIPAA audit trail: record the PHI write. Best-effort — a failed audit
+      // insert must not lose the signed note.
+      try {
+        await repos.auditLogs.record({
+          organization_id: orgId,
+          actor_id: profile?.id ?? null,
+          action: 'CLINICAL_NOTE_SIGNED',
+          resource_type: 'ClinicalNote',
+          resource_id: note.id,
+          details: null,
+          ip_address: null,
+        });
+      } catch {
+        // swallow — audit failure shouldn't fail the clinical action
+      }
+      return note;
     },
   };
 }
