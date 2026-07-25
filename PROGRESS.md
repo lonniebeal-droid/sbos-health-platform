@@ -143,6 +143,10 @@ and pushed; CI (`build-and-test` + a `docker` smoke-test job) is green.
   release preflight (build + live container smoke test on a free port).
 - **Docs:** added [`docs/BACKEND.md`](docs/BACKEND.md) describing the real API,
   security posture, env, run/verify steps, and known gaps.
+- **Perf + reliability:** memoized the Gemini client (was reconstructed on every
+  AI request) and added an upstream `GEMINI_TIMEOUT_MS` (default 30s) so a hung
+  Gemini call can't hold a request open indefinitely. Tests assert reuse +
+  rebuild-on-key-change (48 tests total).
 
 Backend follow-ups needing credentials or a decision: authenticate `/api/ai/*`
 (needs the Supabase JWT secret), shared-store rate limiter for multi-instance,

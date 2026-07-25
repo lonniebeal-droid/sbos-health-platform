@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { rateLimit } from '../server';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { rateLimit, getGeminiClient } from '../server';
 
 // Minimal Express-ish req/res doubles for exercising the middleware in isolation.
 function mockCtx(ip: string) {
@@ -104,5 +104,36 @@ describe('rateLimit', () => {
     mw({ socket: {} } as any, res2, next2);
     expect(next2).not.toHaveBeenCalled();
     expect(res2.statusCode).toBe(429);
+  });
+});
+
+describe('getGeminiClient', () => {
+  const originalKey = process.env.GEMINI_API_KEY;
+  afterEach(() => {
+    if (originalKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = originalKey;
+  });
+
+  it('returns null when no API key is configured', () => {
+    delete process.env.GEMINI_API_KEY;
+    expect(getGeminiClient()).toBeNull();
+  });
+
+  it('memoizes the client — same instance across calls with the same key', () => {
+    process.env.GEMINI_API_KEY = 'test-key-alpha';
+    const a = getGeminiClient();
+    const b = getGeminiClient();
+    expect(a).not.toBeNull();
+    expect(a).toBe(b); // reused, not reconstructed per call
+  });
+
+  it('rebuilds the client when the API key changes', () => {
+    process.env.GEMINI_API_KEY = 'test-key-one';
+    const first = getGeminiClient();
+    process.env.GEMINI_API_KEY = 'test-key-two';
+    const second = getGeminiClient();
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(second).not.toBe(first);
   });
 });

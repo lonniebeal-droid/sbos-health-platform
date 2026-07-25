@@ -96,18 +96,32 @@ app.use('/api', (req: express.Request, res: express.Response, next: express.Next
   next();
 });
 
-// Initialize Google GenAI Server SDK lazily or with fallbacks
-function getGeminiClient() {
+// Upstream request timeout (ms) so a hung Gemini call can't hold an HTTP
+// request open indefinitely. Configurable via GEMINI_TIMEOUT_MS; default 30s.
+const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 30_000;
+
+// Memoized Google GenAI client. Constructing a client per request (as this did
+// before) needlessly re-runs SDK setup on every AI call; build it once and
+// reuse it, re-creating only if the API key changes at runtime. Returns null
+// when no key is configured, which triggers the demo-fallback responses.
+let geminiClient: GoogleGenAI | null = null;
+let geminiClientKey: string | undefined;
+
+export function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
-  return new GoogleGenAI({
+  if (geminiClient && geminiClientKey === apiKey) return geminiClient;
+  geminiClient = new GoogleGenAI({
     apiKey,
     httpOptions: {
+      timeout: GEMINI_TIMEOUT_MS,
       headers: {
         'User-Agent': 'aistudio-build',
       },
     },
   });
+  geminiClientKey = apiKey;
+  return geminiClient;
 }
 
 // ---------------------------

@@ -52,6 +52,7 @@ Configured in the "SECURITY & HARDENING MIDDLEWARE" block of `server.ts`:
 | --- | ------- | ----- |
 | `GEMINI_API_KEY` | server | Enables real AI; unset → demo fallback. |
 | `GEMINI_MODEL` | server | Default `gemini-2.0-flash`. |
+| `GEMINI_TIMEOUT_MS` | server | Upstream timeout for Gemini calls (ms). Default `30000`. |
 | `PORT` | server | Default `3000`. |
 | `NODE_ENV` | server | `production` enables static SPA serving + HSTS. |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | frontend / data layer | See `.env.example`; not consumed by `server.ts`. |
