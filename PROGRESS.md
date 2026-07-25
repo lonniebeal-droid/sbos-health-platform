@@ -157,6 +157,10 @@ and pushed; CI (`build-and-test` + a `docker` smoke-test job) is green.
 - **DX:** added a root `README.md` (architecture, prerequisites, quick start,
   scripts, env, Docker, testing, doc index) — the repo had none. Accurate to the
   code; links verified.
+- **Dedup + reliability:** extracted `generateJson()` + `parseJsonLoose()` from
+  the two structured AI handlers (removed duplicated generateContent/parse) and
+  made JSON parsing tolerant of ```json fences the model sometimes emits. 4 new
+  parser tests (52 total).
 
 Backend follow-ups needing credentials or a decision: authenticate `/api/ai/*`
 (needs the Supabase JWT secret), shared-store rate limiter for multi-instance,

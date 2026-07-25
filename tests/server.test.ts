@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { rateLimit, getGeminiClient } from '../server';
+import { rateLimit, getGeminiClient, parseJsonLoose } from '../server';
 
 // Minimal Express-ish req/res doubles for exercising the middleware in isolation.
 function mockCtx(ip: string) {
@@ -135,5 +135,24 @@ describe('getGeminiClient', () => {
     expect(first).not.toBeNull();
     expect(second).not.toBeNull();
     expect(second).not.toBe(first);
+  });
+});
+
+describe('parseJsonLoose', () => {
+  it('parses plain JSON', () => {
+    expect(parseJsonLoose('{"a":1,"b":[2,3]}')).toEqual({ a: 1, b: [2, 3] });
+  });
+
+  it('parses JSON wrapped in ```json fences', () => {
+    const fenced = '```json\n{"riskScore": 12, "flags": []}\n```';
+    expect(parseJsonLoose(fenced)).toEqual({ riskScore: 12, flags: [] });
+  });
+
+  it('parses JSON wrapped in bare ``` fences', () => {
+    expect(parseJsonLoose('```\n{"ok":true}\n```')).toEqual({ ok: true });
+  });
+
+  it('throws on non-JSON output', () => {
+    expect(() => parseJsonLoose('I could not complete that request.')).toThrow();
   });
 });

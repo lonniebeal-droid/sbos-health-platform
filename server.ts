@@ -124,6 +124,34 @@ export function getGeminiClient() {
   return geminiClient;
 }
 
+// Parse a model response expected to be a JSON object. Gemini usually honors
+// responseMimeType: 'application/json', but occasionally wraps the payload in
+// ```json fences — tolerate that instead of failing the request.
+export function parseJsonLoose(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (fenced) return JSON.parse(fenced[1]);
+    throw new Error('Model returned non-JSON output');
+  }
+}
+
+// Call Gemini for a JSON-object response and parse it defensively. Centralizes
+// the generateContent + parse shared by the structured AI endpoints.
+async function generateJson(
+  ai: GoogleGenAI,
+  prompt: string,
+  temperature: number,
+): Promise<unknown> {
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: prompt,
+    config: { responseMimeType: 'application/json', temperature },
+  });
+  return parseJsonLoose(response.text || '{}');
+}
+
 // ---------------------------
 // REST API ENDPOINTS
 // ---------------------------
@@ -254,16 +282,7 @@ Raw Clinician Dictation/Notes:
 
 Format as JSON with keys: behavior, intervention, response, plan, suggestedICD (array of strings), suggestedCPT (array of strings).`;
 
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.2,
-      }
-    });
-
-    const parsed = JSON.parse(response.text || '{}');
+    const parsed = await generateJson(ai, prompt, 0.2);
     return res.json({ birpNote: parsed });
   } catch (error: any) {
     console.error('Error in /api/ai/clinical-notes:', error);
@@ -298,16 +317,7 @@ Provide a JSON output with:
 - recommendation (string)
 - riskFlags (array of string bullet points explaining flags or clean status)`;
 
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.1
-      }
-    });
-
-    const parsed = JSON.parse(response.text || '{}');
+    const parsed = await generateJson(ai, prompt, 0.1);
     return res.json(parsed);
   } catch (error: any) {
     console.error('Error in /api/ai/fraud-analysis:', error);
