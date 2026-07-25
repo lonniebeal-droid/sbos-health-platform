@@ -9,7 +9,7 @@
 #               from node_modules at runtime; all four are in `dependencies`.
 #   runner    — minimal image: dist/ + docs/ + pruned node_modules, non-root.
 
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -25,7 +25,7 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 # Production-only dependencies (kept separate so dev tooling — esbuild, tsx,
 # vitest, typescript, autoprefixer — never lands in the final image).
-FROM node:20-alpine AS prod-deps
+FROM node:22-alpine AS prod-deps
 
 WORKDIR /app
 
@@ -34,7 +34,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # ---------------------------------------------------------------------------
 # Final runtime image.
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 

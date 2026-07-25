@@ -151,6 +151,9 @@ and pushed; CI (`build-and-test` + a `docker` smoke-test job) is green.
   process handlers (log; exit non-zero on uncaught so the orchestrator restarts
   a clean instance); set least-privilege `permissions: contents: read` on the
   CI workflow.
+- **Runtime bump:** Node 20 (EOL) → Node 22 LTS in the Dockerfile (all 3 stages)
+  and CI. Image build + container smoke test verified on `v22`; `npm audit`
+  reports 0 vulnerabilities.
 
 Backend follow-ups needing credentials or a decision: authenticate `/api/ai/*`
 (needs the Supabase JWT secret), shared-store rate limiter for multi-instance,
