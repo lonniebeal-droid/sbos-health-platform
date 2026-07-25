@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12 } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -86,5 +86,41 @@ describe('mapPatient', () => {
     const p = mapPatient({ ...basePatientRow, user: null, recent_vitals: null });
     expect(p.name).toBe('Unknown Patient');
     expect(p.recentVitals.heartRate).toBe(0);
+  });
+});
+
+describe('formatTime24to12', () => {
+  it('converts 24h to 12h', () => {
+    expect(formatTime24to12('10:00')).toBe('10:00 AM');
+    expect(formatTime24to12('14:30')).toBe('2:30 PM');
+    expect(formatTime24to12('00:15')).toBe('12:15 AM');
+    expect(formatTime24to12('12:00')).toBe('12:00 PM');
+  });
+});
+
+describe('mapAppointment', () => {
+  const row: AppointmentWithNames = {
+    id: 'apt-1', patient_id: 'pat-1', provider_id: 'prov-1', organization_id: 'org-1',
+    appointment_type: 'telehealth', status: 'scheduled', scheduled_at: '2026-07-28T10:00:00Z',
+    telehealth_room_url: 'https://sbos.health/meet/x', chief_complaint: 'Wellness check',
+    created_at: '2026-01-01T00:00:00Z',
+    patient: { user: { full_name: 'Sarah Jenkins' } },
+    provider: { specialty: 'Internal Medicine', user: { full_name: 'Dr. James Wilson' } },
+  };
+
+  it('maps names, date/time, type, reason, and meet link', () => {
+    const a = mapAppointment(row);
+    expect(a.patientName).toBe('Sarah Jenkins');
+    expect(a.providerName).toBe('Dr. James Wilson');
+    expect(a.providerSpecialty).toBe('Internal Medicine');
+    expect(a.date).toBe('2026-07-28');
+    expect(a.time).toBe('10:00 AM');
+    expect(a.type).toBe('telehealth');
+    expect(a.reason).toBe('Wellness check');
+    expect(a.meetLink).toBe('https://sbos.health/meet/x');
+  });
+
+  it('maps non-telehealth types to in_person', () => {
+    expect(mapAppointment({ ...row, appointment_type: 'specialist' }).type).toBe('in_person');
   });
 });

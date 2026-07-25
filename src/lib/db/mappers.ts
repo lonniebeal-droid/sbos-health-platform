@@ -8,8 +8,36 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus } from './database.types';
+import type { AuditLog, Role, Patient, Prescription, Appointment } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames } from './database.types';
+
+/** '14:30' (24h) -> '2:30 PM'. Pure/deterministic for testing. */
+export function formatTime24to12(hhmm: string): string {
+  const [hStr, m] = hhmm.split(':');
+  const h = Number(hStr);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${m ?? '00'} ${period}`;
+}
+
+/** AppointmentWithNames -> the UI Appointment domain type. */
+export function mapAppointment(row: AppointmentWithNames): Appointment {
+  const iso = row.scheduled_at ?? '';
+  return {
+    id: row.id,
+    patientId: row.patient_id ?? '',
+    patientName: row.patient?.user?.full_name ?? 'Unknown Patient',
+    providerId: row.provider_id ?? '',
+    providerName: row.provider?.user?.full_name ?? 'Unknown Provider',
+    providerSpecialty: row.provider?.specialty ?? '',
+    date: iso.slice(0, 10),
+    time: iso.length >= 16 ? formatTime24to12(iso.slice(11, 16)) : '',
+    type: row.appointment_type === 'telehealth' ? 'telehealth' : 'in_person',
+    reason: row.chief_complaint ?? '',
+    status: row.status,
+    meetLink: row.telehealth_room_url ?? undefined,
+  };
+}
 
 // DB rx_status has expired/discontinued which the UI domain collapses to 'completed'.
 const RX_STATUS_MAP: Record<DbRxStatus, Prescription['status']> = {

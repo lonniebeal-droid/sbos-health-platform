@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { samplePatient, sampleAppointments } from '../../data/mockData';
 import { Appointment } from '../../types';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapAppointment } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
 import { InsuranceCardModal } from './InsuranceCardModal';
 import { ClaimsTracker } from './ClaimsTracker';
 import { BenefitsExplainer } from './BenefitsExplainer';
@@ -34,10 +38,20 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
   const [activeTab, setActiveTab] = useState<'overview' | 'claims' | 'benefits' | 'providers' | 'prescriptions' | 'records' | 'billing'>('overview');
   const [showIdCardModal, setShowIdCardModal] = useState(false);
   const [isTelehealthActive, setIsTelehealthActive] = useState(false);
-  const [appointments, setAppointments] = useState<Appointment[]>(sampleAppointments);
+  // Locally-booked appointments (this session) layered on top of loaded data.
+  const [localAppts, setLocalAppts] = useState<Appointment[]>([]);
+  const { data: realAppts } = useAsync<Appointment[]>(
+    async () => (await getRepositories().appointments.listDetailed()).map(mapAppointment),
+    isSupabaseConfigured,
+  );
+  const usingLiveAppts = isSupabaseConfigured && !!realAppts && realAppts.length > 0;
+  const appointments: Appointment[] = [
+    ...localAppts,
+    ...(usingLiveAppts ? (realAppts as Appointment[]) : sampleAppointments),
+  ];
 
   const handleBookAppointment = (apt: Appointment) => {
-    setAppointments((prev) => [apt, ...prev]);
+    setLocalAppts((prev) => [apt, ...prev]);
   };
 
   const navItems = [

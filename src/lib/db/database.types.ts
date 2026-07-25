@@ -83,6 +83,12 @@ export interface PrescriptionWithProvider extends PrescriptionRow {
   provider: { user: { full_name: string } | null } | null;
 }
 
+/** An appointment with patient + provider display names. */
+export interface AppointmentWithNames extends AppointmentRow {
+  patient: { user: { full_name: string } | null } | null;
+  provider: { specialty: string; user: { full_name: string } | null } | null;
+}
+
 export interface ProviderRow {
   id: string;
   user_id: string | null;

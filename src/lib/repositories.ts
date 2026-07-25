@@ -14,7 +14,7 @@ import type {
   OrganizationRow, OrganizationInsert,
   UserRow,
   PatientRow, PatientWithUser, ProviderRow,
-  AppointmentRow, AppointmentInsert, DbAppointmentStatus,
+  AppointmentRow, AppointmentInsert, AppointmentWithNames, DbAppointmentStatus,
   ClaimRow, DbClaimStatus,
   PrescriptionRow, PrescriptionWithProvider,
   PriorAuthorizationRow, PriorAuthorizationInsert, DbPriorAuthStatus,
@@ -85,6 +85,15 @@ export function createRepositories(client: SupabaseClient) {
 
     appointments: {
       ...crud<AppointmentRow>(client, 'appointments', 'scheduled_at'),
+      /** Appointments with patient + provider display names. */
+      async listDetailed(): Promise<AppointmentWithNames[]> {
+        return unwrap<AppointmentWithNames[]>(
+          await client
+            .from('appointments')
+            .select('*, patient:patients(user:users(full_name)), provider:providers(specialty, user:users(full_name))')
+            .order('scheduled_at'),
+        );
+      },
       async create(payload: AppointmentInsert): Promise<AppointmentRow> {
         return unwrap<AppointmentRow>(
           await client.from('appointments').insert(payload).select().single(),
