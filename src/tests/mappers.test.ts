@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12 } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -122,5 +122,48 @@ describe('mapAppointment', () => {
 
   it('maps non-telehealth types to in_person', () => {
     expect(mapAppointment({ ...row, appointment_type: 'specialist' }).type).toBe('in_person');
+  });
+});
+
+describe('mapClaim', () => {
+  const row: ClaimWithNames = {
+    id: 'clm-1', claim_number: 'CLM-2026-884102', patient_id: 'pat-1', provider_id: 'prov-1',
+    payer_organization_id: 'org-2', organization_id: 'org-1', service_date: '2026-07-10',
+    total_billed: 1250, approved_amount: 1100, patient_copay: 30, status: 'paid',
+    icd10_codes: ['R07.9', 'I10'], cpt_codes: ['71250', '99214'], ai_risk_score: 4, ai_risk_flags: [],
+    plain_english_explanation: 'Covered at 90%.',
+    patient_name: null, provider_name: null, provider_npi: null,
+    created_at: '2026-07-11T00:00:00Z',
+    patient: { user: { full_name: 'Sarah Jenkins' } },
+    provider: { npi: '1982736410', user: { full_name: 'Dr. James Wilson' } },
+  };
+
+  it('maps names, NPI, amounts, codes, and explanation via join', () => {
+    const c = mapClaim(row);
+    expect(c.patientName).toBe('Sarah Jenkins');
+    expect(c.providerName).toBe('Dr. James Wilson');
+    expect(c.providerNpi).toBe('1982736410');
+    expect(c.planCoveredAmount).toBe(1100);
+    expect(c.patientResponsibility).toBe(30);
+    expect(c.diagnosisCodes).toEqual(['R07.9', 'I10']);
+    expect(c.submittedDate).toBe('2026-07-11');
+    expect(c.plainEnglishExplanation).toBe('Covered at 90%.');
+  });
+
+  it('degrades gracefully when joins are missing', () => {
+    const c = mapClaim({ ...row, patient: null, provider: null, plain_english_explanation: null });
+    expect(c.patientName).toBe('Unknown Patient');
+    expect(c.providerNpi).toBe('');
+    expect(c.plainEnglishExplanation).toBe('');
+  });
+
+  it('prefers denormalized names (payer view, no cross-org join)', () => {
+    const c = mapClaim({
+      ...row, patient: null, provider: null,
+      patient_name: 'Sarah Jenkins', provider_name: 'Dr. James Wilson', provider_npi: '1982736410',
+    });
+    expect(c.patientName).toBe('Sarah Jenkins');
+    expect(c.providerName).toBe('Dr. James Wilson');
+    expect(c.providerNpi).toBe('1982736410');
   });
 });

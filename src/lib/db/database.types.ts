@@ -120,6 +120,7 @@ export interface ClaimRow {
   patient_id: string | null;
   provider_id: string | null;
   payer_organization_id: string | null;
+  organization_id: string | null;
   service_date: string;
   total_billed: number;
   approved_amount: number;
@@ -129,7 +130,18 @@ export interface ClaimRow {
   cpt_codes: string[];
   ai_risk_score: number;
   ai_risk_flags: string[];
+  plain_english_explanation: string | null;
+  // Denormalized display identity (see 20260725020000_claims_visibility.sql).
+  patient_name: string | null;
+  provider_name: string | null;
+  provider_npi: string | null;
   created_at: string;
+}
+
+/** A claim with patient + provider display names and provider NPI. */
+export interface ClaimWithNames extends ClaimRow {
+  patient: { user: { full_name: string } | null } | null;
+  provider: { npi: string; user: { full_name: string } | null } | null;
 }
 
 export interface PrescriptionRow {

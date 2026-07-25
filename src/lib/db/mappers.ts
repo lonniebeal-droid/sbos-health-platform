@@ -8,8 +8,33 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription, Appointment } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames } from './database.types';
+import type { AuditLog, Role, Patient, Prescription, Appointment, Claim } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames } from './database.types';
+
+/** ClaimWithNames -> the UI Claim domain type. */
+export function mapClaim(row: ClaimWithNames): Claim {
+  return {
+    id: row.id,
+    claimNumber: row.claim_number,
+    patientId: row.patient_id ?? '',
+    // Prefer the denormalized identity carried on the claim (visible to the
+    // payer); fall back to the joined records (visible to same-org staff).
+    patientName: row.patient_name ?? row.patient?.user?.full_name ?? 'Unknown Patient',
+    providerName: row.provider_name ?? row.provider?.user?.full_name ?? 'Unknown Provider',
+    providerNpi: row.provider_npi ?? row.provider?.npi ?? '',
+    serviceDate: row.service_date,
+    submittedDate: (row.created_at ?? '').slice(0, 10),
+    diagnosisCodes: row.icd10_codes ?? [],
+    procedureCodes: row.cpt_codes ?? [],
+    totalBilled: row.total_billed,
+    planCoveredAmount: row.approved_amount,
+    patientResponsibility: row.patient_copay,
+    status: row.status,
+    aiRiskScore: row.ai_risk_score,
+    aiRiskFlags: row.ai_risk_flags ?? [],
+    plainEnglishExplanation: row.plain_english_explanation ?? '',
+  };
+}
 
 /** '14:30' (24h) -> '2:30 PM'. Pure/deterministic for testing. */
 export function formatTime24to12(hhmm: string): string {
