@@ -161,5 +161,9 @@ VALUES ('f0000000-0000-0000-0000-000000000002', 'CLM-2026-992144', 'c0000000-000
         'Knee evaluation and X-Ray. Currently undergoing automated adjudication. Estimated copay $40.')
 ON CONFLICT (id) DO NOTHING;
 
+-- Posted payment on the paid claim.
+UPDATE public.claims SET paid_amount = 1100.00, paid_at = '2026-07-12T00:00:00Z'
+WHERE id = 'f0000000-0000-0000-0000-000000000001';
+
 INSERT INTO public.audit_logs (organization_id, actor_id, action, resource_type, resource_id, ip_address)
 VALUES ('11111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-000000000001', 'EHR_RECORD_VIEW', 'Patient', 'c0000000-0000-0000-0000-000000000001', '10.0.4.19');

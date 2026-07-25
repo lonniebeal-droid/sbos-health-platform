@@ -168,16 +168,20 @@ describe('mapClaim', () => {
     icd10_codes: ['R07.9', 'I10'], cpt_codes: ['71250', '99214'], ai_risk_score: 4, ai_risk_flags: [],
     plain_english_explanation: 'Covered at 90%.',
     patient_name: null, provider_name: null, provider_npi: null,
+    paid_amount: 1100, paid_at: '2026-07-12T00:00:00Z', denial_reason: null,
     created_at: '2026-07-11T00:00:00Z',
     patient: { user: { full_name: 'Sarah Jenkins' } },
     provider: { npi: '1982736410', user: { full_name: 'Dr. James Wilson' } },
   };
 
-  it('maps names, NPI, amounts, codes, and explanation via join', () => {
+  it('maps names, NPI, amounts, codes, explanation, and lifecycle fields', () => {
     const c = mapClaim(row);
     expect(c.patientName).toBe('Sarah Jenkins');
     expect(c.providerName).toBe('Dr. James Wilson');
     expect(c.providerNpi).toBe('1982736410');
+    expect(c.paidAmount).toBe(1100);
+    expect(c.paidAt).toBe('2026-07-12T00:00:00Z');
+    expect(c.denialReason).toBeUndefined();
     expect(c.planCoveredAmount).toBe(1100);
     expect(c.patientResponsibility).toBe(30);
     expect(c.diagnosisCodes).toEqual(['R07.9', 'I10']);

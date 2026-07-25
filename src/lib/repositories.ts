@@ -152,6 +152,22 @@ export function createRepositories(client: SupabaseClient) {
           await client.from('claims').update({ status }).eq('id', id).select().single(),
         );
       },
+      /** Post a payment: mark paid with amount + timestamp. */
+      async postPayment(id: string, amount: number): Promise<ClaimRow> {
+        return unwrap<ClaimRow>(
+          await client.from('claims')
+            .update({ status: 'paid', paid_amount: amount, paid_at: new Date().toISOString() })
+            .eq('id', id).select().single(),
+        );
+      },
+      /** Deny a claim with a reason. */
+      async deny(id: string, reason: string): Promise<ClaimRow> {
+        return unwrap<ClaimRow>(
+          await client.from('claims')
+            .update({ status: 'denied', denial_reason: reason })
+            .eq('id', id).select().single(),
+        );
+      },
     },
 
     prescriptions: {

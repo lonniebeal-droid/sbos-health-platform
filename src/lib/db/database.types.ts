@@ -188,6 +188,10 @@ export interface ClaimRow {
   patient_name: string | null;
   provider_name: string | null;
   provider_npi: string | null;
+  // Lifecycle: payment posting + denial (see 20260725080000_claims_lifecycle.sql).
+  paid_amount: number;
+  paid_at: string | null;
+  denial_reason: string | null;
   created_at: string;
 }
 

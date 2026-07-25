@@ -188,6 +188,9 @@ export function mapClaim(row: ClaimWithNames): Claim {
     aiRiskScore: row.ai_risk_score,
     aiRiskFlags: row.ai_risk_flags ?? [],
     plainEnglishExplanation: row.plain_english_explanation ?? '',
+    paidAmount: row.paid_amount ?? 0,
+    paidAt: row.paid_at ?? undefined,
+    denialReason: row.denial_reason ?? undefined,
   };
 }
 

@@ -131,6 +131,9 @@ export interface Claim {
   aiRiskScore: number; // 0-100 fraud/abuse risk score
   aiRiskFlags: string[];
   plainEnglishExplanation: string;
+  paidAmount?: number;
+  paidAt?: string;
+  denialReason?: string;
 }
 
 export interface PriorAuth {

@@ -36,7 +36,13 @@ export const InsuranceClaimsCenter: React.FC = () => {
     setStatusOverrides((prev) => ({ ...prev, [id]: status }));
     if (usingLive) {
       try {
-        await getRepositories().claims.updateStatus(id, status);
+        if (newStatus === 'approved') {
+          // Post payment at the plan-covered amount.
+          const claim = claims.find((c) => c.id === id);
+          await getRepositories().claims.postPayment(id, claim?.planCoveredAmount ?? 0);
+        } else {
+          await getRepositories().claims.deny(id, 'Denied on adjudication review');
+        }
       } catch {
         setStatusOverrides((prev) => {
           const next = { ...prev };
