@@ -9,6 +9,11 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+// Gemini model is configurable via env. The previous hardcoded value
+// ('gemini-3.6-flash') is not a real model and 404s on every call. Verify the
+// exact model available on your account/SDK version before relying on this.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+
 app.use(express.json());
 
 // Initialize Google GenAI Server SDK lazily or with fallbacks
@@ -84,7 +89,7 @@ Help HR directors with employee plan comparisons, open enrollment questions, wel
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: GEMINI_MODEL,
       contents: prompt,
       config: {
         systemInstruction,
@@ -142,7 +147,7 @@ Raw Clinician Dictation/Notes:
 Format as JSON with keys: behavior, intervention, response, plan, suggestedICD (array of strings), suggestedCPT (array of strings).`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: GEMINI_MODEL,
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -181,7 +186,7 @@ Provide a JSON output with:
 - riskFlags (array of string bullet points explaining flags or clean status)`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: GEMINI_MODEL,
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
