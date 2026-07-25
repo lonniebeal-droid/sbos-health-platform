@@ -16,9 +16,9 @@
 
 | Control | Status | Reality |
 |---|---|---|
-| User authentication | 🔴 Not implemented | `/api/auth/login` (`server.ts`) accepts any email, **never checks the password**, and returns `sbos_jwt_token_<base64(email)>_<timestamp>` — not a real signed JWT. |
-| Session verification | 🔴 Not implemented | `/api/auth/me` returns a hardcoded user regardless of any token. No route verifies auth. |
-| MFA | 🔴 Not implemented | Login response sets `mfaVerified:true` as a literal. No MFA exists. |
+| User authentication | 🟡 In progress | Real `authService` over Supabase Auth (`src/lib/services/authService.ts`) built + unit-tested. **Not yet wired to a login UI**, and the fake `/api/auth/login` (accepts any email, ignores password) still exists in `server.ts` and must be removed. |
+| Session verification | 🟡 In progress | Supabase issues real JWTs; RLS enforces them at the DB. No Express route verifies sessions yet; `/api/auth/me` still returns a hardcoded user. |
+| MFA | 🔴 Not implemented | No MFA yet (Supabase Auth supports it; not configured). |
 | RBAC enforcement | 🔴 Not implemented | `src/lib/permissions.ts` defines a correct matrix, but it is **never called** by any route or UI guard. The front end selects roles via a dropdown. |
 | Front-end auth | 🔴 Not implemented | No login screen, no token storage, no auth context. |
 
@@ -26,8 +26,9 @@
 
 | Control | Status | Reality |
 |---|---|---|
-| Row-Level Security | 🔴 Broken | Enabled on only 4 of 12 tables (`organizations`, `patients`, `claims`, `audit_logs`). Policies use `USING (id = auth.uid() OR TRUE)` — the `OR TRUE` makes them **always allow**, so there is no isolation. |
-| Tenant context propagation | 🔴 Not implemented | The app sends no auth/tenant claims to any DB (there is no DB connection at all), so even correct RLS would be inert. |
+| Row-Level Security | ✅ Real (local) | `20260725000000_auth_integration_rls.sql` removes the `OR TRUE` policies and enables real org-isolation RLS on every tenant table. Verified: anon reads only the (non-PHI) org directory; PHI tables deny unauthenticated access. Not yet exercised on hosted infra. |
+| Tenant context propagation | 🟡 In progress | Isolation resolves via `current_user_org_id()` from the signed-in user's profile. Fully exercised once the login UI lands and real sessions flow from the browser. |
+| Per-role write RBAC in RLS | 🔴 Not implemented | Policies isolate by tenant but do not yet restrict writes by role (e.g. patient vs provider). Enforced only in the service layer for now. |
 
 ## 3. PHI Protection (Encryption / Storage)
 

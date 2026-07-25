@@ -97,6 +97,36 @@ schema, delete/merge the other, fix RLS.
 - `terraform/` targets **GCP Cloud SQL**, which contradicts the "Supabase" direction
   elsewhere. Pick one.
 
+## 6a. Real data layer (added 2026-07-25)
+
+A typed data-access layer now exists (client-side), replacing direct mock imports
+as components migrate onto it:
+
+```
+src/lib/supabaseClient.ts        browser client + requireSupabase()
+src/lib/db/database.types.ts     DB row/enum types matching the canonical schema
+src/lib/db/mappers.ts            DB row -> UI domain type (only where faithful)
+src/lib/repositories.ts          per-table repos (factory; unit-tested w/ fake client)
+src/lib/services/authService.ts  real Supabase Auth wrapper (replaces fake login)
+src/lib/services/organizationService.ts
+src/lib/organizationContext.tsx  now loads real orgs from Supabase, falls back to sample
+```
+
+**Local dev backend:** Supabase runs locally via Colima + the Supabase CLI
+(`supabase start`; analytics disabled in `config.toml` for Colima). Migrations:
+`20260724000000_enterprise_schema.sql` (canonical) then
+`20260725000000_auth_integration_rls.sql` (auth linkage + real RLS). Env vars in
+`.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
+
+**Verified:** `supabase db reset` applies cleanly; a real anon client reads the 3
+seeded organizations and is denied on PHI tables; `tsc` clean; 28 Vitest tests pass;
+production build succeeds. Browser run is currently blocked by a local auth-gateway
+that intercepts loopback ports (environment issue, not the app).
+
+**Not yet done:** components still import mocks (migration onto repositories is
+incremental); no login UI; `server.ts` endpoints still mocked; schema is thinner
+than several UI domain types (see TECH_DEBT.md items 22–24).
+
 ## 7. Verified-Good Items
 
 - `tsc --noEmit` passes (0 errors).

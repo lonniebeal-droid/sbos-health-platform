@@ -31,10 +31,10 @@ schema. Making this production-ready requires building the backend, not swapping
 | TypeScript build (`tsc --noEmit`) | ✅ Real | Passes with 0 errors. |
 | Domain type model (`src/types.ts`) | ✅ Real | Thorough, usable. |
 | RBAC permission function (`src/lib/permissions.ts`) | 🟡 Mocked | Real pure function + real unit test, but **not enforced** on any route or UI action. |
-| Authentication / sessions / MFA | ⚪ Planned | `/api/auth/login` ignores password, returns fake token. Front end never calls it; role chosen via dropdown. |
-| Database / persistence | ⚪ Planned | No DB connection anywhere. `@supabase/supabase-js` installed, **never imported**. |
-| SQL schema (`supabase/migrations/`) | 🔴 Broken | Two **conflicting** schemas (see §3). Never applied by the app. |
-| Multi-tenant isolation (RLS) | 🔴 Broken | Policies exist but use `OR TRUE`, so they permit everything. Most tables have no RLS at all. |
+| Authentication / sessions / MFA | 🟡 In progress | Real `authService` over Supabase Auth built + unit-tested; **no login UI yet** and the fake `/api/auth/login` still exists. Role still chosen via dropdown. |
+| Database / persistence | 🟡 In progress | Local Supabase stack running; typed client + repository/service layer wired and consumed by the org context. Most components + `server.ts` still on mocks. |
+| SQL schema (`supabase/migrations/`) | ✅ Real (local) | One canonical schema; applies cleanly via `supabase db reset`. Not yet on hosted infra. |
+| Multi-tenant isolation (RLS) | ✅ Real (local) | `OR TRUE` removed; real org-isolation policies on all tenant tables, verified: anon reads only the org directory, PHI tables deny unauthenticated access. Per-role write RBAC in RLS is future work. |
 | Appointments (`/api/appointments*`) | 🟡 Mocked | Returns hardcoded appointments; `book` echoes input. Nothing stored. |
 | Patient messaging (`/api/messages*`) | 🟡 Mocked | Hardcoded message; `send` returns fake id. |
 | WebRTC telehealth (`/api/telehealth/*`) | 🟡 Mocked | Returns fake room ids/tokens. No signaling server, no sockets. |

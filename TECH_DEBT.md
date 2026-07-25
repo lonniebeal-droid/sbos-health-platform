@@ -14,21 +14,21 @@ Priority: **P0** = blocks correctness/security · **P1** = blocks real features 
 
 | # | Item | Detail |
 |---|---|---|
-| 1 | **No real backend** | Every non-AI endpoint in `server.ts` returns hardcoded literals. No persistence. |
-| 2 | **No authentication** | `/api/auth/login` ignores passwords and returns a fake token; no route verifies sessions. |
-| 3 | **Conflicting DB schemas** | Two migrations define incompatible table sets (`tenants/profiles` vs `organizations/users/...`). Choose one canonical schema. |
-| 4 | **Broken RLS** | Policies use `OR TRUE` (allow-all); RLS enabled on only 4 of 12 tables. No tenant isolation. |
-| 5 | **Fabricated-claim risk** | Prior versions of the reports claimed controls that don't exist. Reports were rewritten 2026-07-24; keep them honest going forward. |
-| 6 | **No input validation / rate limiting / security headers** | All endpoints trust `req.body`; no helmet/CORS/limits. |
+| 1 | **`server.ts` endpoints still mocked** | Every non-AI endpoint returns hardcoded literals. The real data layer (`src/lib/repositories.ts`, `services/`) now exists client-side; the Express endpoints still need to use it or be removed in favor of direct Supabase access. |
+| 2 | **Auth not wired to the UI** | Real `authService` (Supabase Auth) is built and tested, but there is no login screen and the app still selects role via a dropdown. `/api/auth/login` (fake) still exists in `server.ts`. |
+| 5 | **Fabricated-claim risk** | Prior reports claimed controls that don't exist. Reports rewritten 2026-07-24; keep them honest going forward. |
+| 6 | **No input validation / rate limiting / security headers** | All `server.ts` endpoints trust `req.body`; no helmet/CORS/limits. |
 
 ## P1 — Blocks Real Features
 
 | # | Item | Detail |
 |---|---|---|
-| 7 | **`@supabase/supabase-js` unused** | Installed but never imported. No DB client wiring on server or client. |
-| 8 | **RBAC never enforced** | `permissions.ts` is correct but not called by any route or UI guard. |
-| 9 | **Components import mocks directly** | 21 components import from `data/mock*`. Needs a single data-access seam so mock→real is one change. |
-| 10 | **Four inconsistent org/tenant sources** | `/api/tenants`, `mockTenants.ts`, `organizationContext.tsx`, SQL seeds all disagree. |
+| 8 | **RBAC never enforced** | `permissions.ts` is correct and unit-tested but not yet called by any route or UI guard. Also not yet enforced in RLS (tenant isolation is; per-role writes are not). |
+| 9 | **Components still import mocks directly** | 21 components import from `data/mock*`. The repository/service seam now exists (`src/lib/repositories.ts`); migrate components onto it one domain at a time. |
+| 10 | **Inconsistent org/tenant sources** | `server.ts /api/tenants`, `mockTenants.ts`, and SQL seeds still disagree. `organizationContext.tsx` now loads real orgs from Supabase; consolidate the rest. |
+| 22 | **Schema thinner than UI domain types** | No columns/tables for: patient vitals, family members, primaryCarePhysician; provider rating/bio/avatar/affiliation; patient_messages, benefits_plans, medical_records. Add these before those views can use real data. |
+| 23 | **Claims RLS is payer-only** | `claims_payer_tenant` isolates by `payer_organization_id`; provider-side visibility not yet modeled. |
+| 24 | **No seed for auth users** | `supabase/seed.sql` absent; no test users to sign in with locally. Add a seed that creates auth users + profiles. |
 | 11 | **`deploy.sh` doesn't migrate** | Step 3 only echoes success; wire a real migration step. |
 | 12 | **Terraform vs Supabase mismatch** | IaC provisions GCP Cloud SQL while docs say Supabase. Decide the target. |
 | 13 | **GraphQL is fake** | `graphql` dep unused; `/api/graphql` ignores the query. Either implement or remove. |
@@ -48,6 +48,19 @@ Priority: **P0** = blocks correctness/security · **P1** = blocks real features 
 
 ## Resolved
 
+- 2026-07-25 — **Conflicting DB schemas** (was item 3). Enterprise schema chosen
+  canonical; redundant `20260724_init_sbos_schema.sql` removed.
+- 2026-07-25 — **Broken RLS** (was item 4). New migration
+  `20260725000000_auth_integration_rls.sql` removes the `OR TRUE` policies, links
+  `public.users` to `auth.users`, adds a uniform `organization_id` to the tables
+  that lacked one, and enables real tenant-isolation RLS on all tenant tables.
+  Validated on `supabase db reset`: anon reads the org directory, PHI tables deny
+  unauthenticated access.
+- 2026-07-25 — **`@supabase/supabase-js` unused** (was item 7). Now wired via
+  `src/lib/supabaseClient.ts` + a repository/service layer, consumed by
+  `organizationContext.tsx`.
+- 2026-07-25 — **`server.ts` ignored `process.env.PORT`** despite docker-compose
+  setting it. Now `Number(process.env.PORT) || 3000`.
 - 2026-07-25 — **Broken/redundant CI** (item 16). Removed the corrupted
   `actions/node-清新@v3` step and the duplicate `deploy.yml`. Single `ci.yml` now
   runs typecheck + tests + build on `actions/setup-node@v4`.
