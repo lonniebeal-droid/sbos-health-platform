@@ -1,0 +1,18 @@
+# Terraform state may contain secrets (e.g. the DB password) — never commit it.
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Variable files hold secrets supplied at plan/apply time.
+*.tfvars
+*.tfvars.json
+!example.tfvars
+
+# Provider plugins, module cache, and lock CLI artifacts.
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+
+# Saved plans can contain sensitive values.
+*.tfplan

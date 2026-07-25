@@ -58,6 +58,11 @@ resource "google_cloud_run_v2_service" "sbos_app" {
         name  = "NODE_ENV"
         value = "production"
       }
+      # NOTE: DATABASE_URL embeds the DB password in plaintext in the Cloud Run
+      # revision config. For production, store the password in Secret Manager
+      # and inject it via `value_source.secret_key_ref` instead of a literal
+      # value. Left inline here until the Secret Manager resource + IAM binding
+      # are provisioned (deployment decision).
       env {
         name  = "DATABASE_URL"
         value = "postgresql://${google_sql_database_instance.sbos_postgres.name}:${var.db_password}@${google_sql_database_instance.sbos_postgres.public_ip_address}:5432/sbos_healthos"

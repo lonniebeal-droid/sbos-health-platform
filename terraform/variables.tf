@@ -12,7 +12,6 @@ variable "gcp_region" {
 
 variable "db_password" {
   type        = string
-  description = "Cloud SQL PostgreSQL root password"
+  description = "Cloud SQL PostgreSQL root password. Required — no default. Supply via TF_VAR_db_password or a gitignored *.tfvars file; never commit it."
   sensitive   = true
-  default     = "SBOS_SuperSecure_Postgres_2026!"
 }
