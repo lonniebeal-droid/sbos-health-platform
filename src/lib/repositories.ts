@@ -21,6 +21,7 @@ import type {
   LabResultRow,
   MedicalRecordRow,
   BenefitsPlanRow,
+  EmployerGroupRow, EmployerMemberRow,
   AuditLogRow, AuditLogWithActor, AuditLogInsert,
 } from './db/database.types';
 
@@ -72,6 +73,8 @@ export function createRepositories(client: SupabaseClient) {
 
     medicalRecords: crud<MedicalRecordRow>(client, 'medical_records', 'record_date'),
     benefitsPlans: crud<BenefitsPlanRow>(client, 'benefits_plans', 'created_at'),
+    employerGroups: crud<EmployerGroupRow>(client, 'employer_groups', 'company_name'),
+    employerMembers: crud<EmployerMemberRow>(client, 'employer_members', 'full_name'),
 
     patients: {
       ...crud<PatientRow>(client, 'patients'),

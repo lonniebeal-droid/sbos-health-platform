@@ -8,8 +8,36 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser } from './database.types';
+import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider, EmployerGroup, EmployerMember } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow } from './database.types';
+
+/** EmployerGroupRow -> the UI EmployerGroup domain type. */
+export function mapEmployerGroup(row: EmployerGroupRow): EmployerGroup {
+  return {
+    id: row.id,
+    companyName: row.company_name,
+    groupNumber: row.group_number ?? undefined,
+    activeEnrollees: row.active_enrollees,
+    planType: row.plan_type ?? '',
+    monthlyPremiumTotal: row.monthly_premium_total,
+    renewalDate: row.renewal_date ?? '',
+    wellnessParticipationRate: row.wellness_participation_rate,
+    status: row.status,
+  };
+}
+
+/** EmployerMemberRow -> the UI EmployerMember domain type. */
+export function mapEmployerMember(row: EmployerMemberRow): EmployerMember {
+  return {
+    id: row.id,
+    name: row.full_name,
+    role: row.job_role ?? '',
+    plan: row.plan ?? '',
+    status: row.status,
+    dependents: row.dependents,
+    premiumMonthly: row.premium_monthly,
+  };
+}
 
 /** ProviderWithUser -> the UI Provider (directory) domain type. */
 export function mapProvider(row: ProviderWithUser): Provider {

@@ -218,12 +218,23 @@ export interface BenefitsPlan {
 export interface EmployerGroup {
   id: string;
   companyName: string;
+  groupNumber?: string;
   activeEnrollees: number;
   planType: string;
   monthlyPremiumTotal: number;
   renewalDate: string;
   wellnessParticipationRate: number;
   status: 'active' | 'pending_renewal';
+}
+
+export interface EmployerMember {
+  id: string;
+  name: string;
+  role: string;
+  plan: string;
+  status: string;
+  dependents: number;
+  premiumMonthly: number;
 }
 
 export interface AuditLog {

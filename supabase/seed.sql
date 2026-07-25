@@ -25,7 +25,8 @@ INSERT INTO auth.users (
   ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000001','authenticated','authenticated','provider@bayarea.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Dr. James Wilson','role','provider','organization_id','11111111-1111-1111-1111-111111111111'),now(),now(),'','','',''),
   ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000002','authenticated','authenticated','patient@bayarea.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Sarah Jenkins','role','patient','organization_id','11111111-1111-1111-1111-111111111111'),now(),now(),'','','',''),
   ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000003','authenticated','authenticated','payer@sbospremier.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Elena Rostova','role','insurance','organization_id','22222222-2222-2222-2222-222222222222'),now(),now(),'','','',''),
-  ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000004','authenticated','authenticated','admin@bayarea.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Devon Sterling','role','admin','organization_id','11111111-1111-1111-1111-111111111111'),now(),now(),'','','','')
+  ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000004','authenticated','authenticated','admin@bayarea.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Devon Sterling','role','admin','organization_id','11111111-1111-1111-1111-111111111111'),now(),now(),'','','',''),
+  ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000005','authenticated','authenticated','employer@acme.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Marcus Vance','role','employer','organization_id','33333333-3333-3333-3333-333333333333'),now(),now(),'','','','')
 ON CONFLICT (id) DO NOTHING;
 
 -- Email identities (required by GoTrue for password sign-in).
@@ -35,7 +36,8 @@ INSERT INTO auth.identities (
   ('a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000001',jsonb_build_object('sub','a0000000-0000-0000-0000-000000000001','email','provider@bayarea.test'),'email',now(),now(),now()),
   ('a0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002',jsonb_build_object('sub','a0000000-0000-0000-0000-000000000002','email','patient@bayarea.test'),'email',now(),now(),now()),
   ('a0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000003',jsonb_build_object('sub','a0000000-0000-0000-0000-000000000003','email','payer@sbospremier.test'),'email',now(),now(),now()),
-  ('a0000000-0000-0000-0000-000000000004','a0000000-0000-0000-0000-000000000004',jsonb_build_object('sub','a0000000-0000-0000-0000-000000000004','email','admin@bayarea.test'),'email',now(),now(),now())
+  ('a0000000-0000-0000-0000-000000000004','a0000000-0000-0000-0000-000000000004',jsonb_build_object('sub','a0000000-0000-0000-0000-000000000004','email','admin@bayarea.test'),'email',now(),now(),now()),
+  ('a0000000-0000-0000-0000-000000000005','a0000000-0000-0000-0000-000000000005',jsonb_build_object('sub','a0000000-0000-0000-0000-000000000005','email','employer@acme.test'),'email',now(),now(),now())
 ON CONFLICT DO NOTHING;
 
 -- Domain rows (profiles were auto-created by the trigger above).
@@ -108,6 +110,20 @@ INSERT INTO public.benefits_plans (id, patient_id, organization_id, plan_id, pla
 VALUES ('ac000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
         'SBOS-GOLD-PPO-2026', 'Gold Premier PPO Health Plan', 'PPO', 1500.00, 1250.00, 4500.00, 1680.00,
         '{"primaryCare":20,"specialist":45,"urgentCare":50,"emergencyRoom":250,"genericRx":10}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
+-- Employer group (Acme, org 3333) + census roster.
+INSERT INTO public.employer_groups (id, organization_id, company_name, group_number, active_enrollees, plan_type, monthly_premium_total, renewal_date, wellness_participation_rate, status)
+VALUES ('ad000000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333',
+        'Acme Technology Corp', 'ACME-88390', 142, 'Gold Premier PPO + MindCare', 840500.00, '2027-01-01', 84, 'active')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.employer_members (id, employer_group_id, organization_id, full_name, job_role, plan, status, dependents, premium_monthly)
+VALUES
+  ('ae000000-0000-0000-0000-000000000001', 'ad000000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333', 'Sarah Jenkins', 'Staff Software Engineer', 'SBOS Gold Premier PPO', 'Enrolled', 2, 620),
+  ('ae000000-0000-0000-0000-000000000002', 'ad000000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333', 'Marcus Vance', 'Senior Product Designer', 'SBOS Gold Premier PPO', 'Enrolled', 0, 480),
+  ('ae000000-0000-0000-0000-000000000003', 'ad000000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333', 'Elena Rostova', 'Director of Marketing', 'SBOS Silver HDHP + HSA', 'Enrolled', 1, 510),
+  ('ae000000-0000-0000-0000-000000000004', 'ad000000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333', 'David Kim', 'DevOps Engineer', 'Pending Enrollment', 'Action Required', 0, 0)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.claims (id, claim_number, patient_id, provider_id, payer_organization_id, organization_id, patient_name, provider_name, provider_npi, service_date, total_billed, approved_amount, patient_copay, status, icd10_codes, cpt_codes, ai_risk_score, ai_risk_flags, plain_english_explanation)

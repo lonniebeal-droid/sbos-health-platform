@@ -1,14 +1,33 @@
 import React, { useState } from 'react';
+import { EmployerGroup, EmployerMember } from '../../types';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapEmployerGroup, mapEmployerMember } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
 import { Users, FileSpreadsheet, Sparkles, TrendingUp, DollarSign, ShieldCheck, CheckCircle2, UserPlus, Building, ArrowUpRight } from 'lucide-react';
+
+const MOCK_EMPLOYEES: EmployerMember[] = [
+  { id: 'emp_01', name: 'Sarah Jenkins', role: 'Staff Software Engineer', plan: 'SBOS Gold Premier PPO', status: 'Enrolled', dependents: 2, premiumMonthly: 620 },
+  { id: 'emp_02', name: 'Marcus Vance', role: 'Senior Product Designer', plan: 'SBOS Gold Premier PPO', status: 'Enrolled', dependents: 0, premiumMonthly: 480 },
+  { id: 'emp_03', name: 'Elena Rostova', role: 'Director of Marketing', plan: 'SBOS Silver HDHP + HSA', status: 'Enrolled', dependents: 1, premiumMonthly: 510 },
+  { id: 'emp_04', name: 'David Kim', role: 'DevOps Engineer', plan: 'Pending Enrollment', status: 'Action Required', dependents: 0, premiumMonthly: 0 },
+];
 
 export const EmployerPortal: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'census' | 'plan' | 'ai'>('census');
-  const [employees, setEmployees] = useState([
-    { id: 'emp_01', name: 'Sarah Jenkins', role: 'Staff Software Engineer', plan: 'SBOS Gold Premier PPO', status: 'Enrolled', dependents: 2, premiumMonthly: 620 },
-    { id: 'emp_02', name: 'Marcus Vance', role: 'Senior Product Designer', plan: 'SBOS Gold Premier PPO', status: 'Enrolled', dependents: 0, premiumMonthly: 480 },
-    { id: 'emp_03', name: 'Elena Rostova', role: 'Director of Marketing', plan: 'SBOS Silver HDHP + HSA', status: 'Enrolled', dependents: 1, premiumMonthly: 510 },
-    { id: 'emp_04', name: 'David Kim', role: 'DevOps Engineer', plan: 'Pending Enrollment', status: 'Action Required', dependents: 0, premiumMonthly: 0 }
-  ]);
+
+  const { data: groups } = useAsync<EmployerGroup[]>(
+    async () => (await getRepositories().employerGroups.list()).map(mapEmployerGroup),
+    isSupabaseConfigured,
+  );
+  const { data: roster } = useAsync<EmployerMember[]>(
+    async () => (await getRepositories().employerMembers.list()).map(mapEmployerMember),
+    isSupabaseConfigured,
+  );
+  const group: EmployerGroup | null =
+    isSupabaseConfigured && groups && groups.length > 0 ? groups[0] : null;
+  const employees: EmployerMember[] =
+    isSupabaseConfigured && roster && roster.length > 0 ? roster : MOCK_EMPLOYEES;
 
   const [aiBenefitsQuery, setAiBenefitsQuery] = useState('How can we optimize our Q4 health plan contribution to lower corporate tax liability while maintaining 100% preventive coverage?');
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -44,7 +63,7 @@ export const EmployerPortal: React.FC = () => {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Building className="w-5 h-5 text-teal-400" />
-            <span className="text-xs font-mono font-bold text-teal-300 uppercase">Acme Tech Corp • Group ID #ACME-88390</span>
+            <span className="text-xs font-mono font-bold text-teal-300 uppercase">{group ? `${group.companyName} • Group ID #${group.groupNumber ?? '—'}` : 'Acme Tech Corp • Group ID #ACME-88390'}</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Employer Health Plan & Census Portal</h1>
           <p className="text-xs text-blue-200">
@@ -55,7 +74,7 @@ export const EmployerPortal: React.FC = () => {
         <div className="flex gap-3 text-xs">
           <div className="px-4 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-right">
             <span className="text-blue-200 text-[10px] uppercase font-bold block">Enrolled Employees</span>
-            <span className="font-mono font-extrabold text-xl text-teal-300">142 Active</span>
+            <span className="font-mono font-extrabold text-xl text-teal-300">{group ? `${group.activeEnrollees} Active` : '142 Active'}</span>
           </div>
         </div>
       </div>

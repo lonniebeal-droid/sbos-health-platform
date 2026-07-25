@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan, mapProvider } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan, mapProvider, mapEmployerGroup, mapEmployerMember } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -263,5 +263,40 @@ describe('mapProvider', () => {
   it('falls back to the joined user name', () => {
     const p = mapProvider({ ...row, full_name: null });
     expect(p.name).toBe('Dr. James Wilson');
+  });
+});
+
+describe('mapEmployerGroup', () => {
+  const row: EmployerGroupRow = {
+    id: 'eg-1', organization_id: 'org-3', company_name: 'Acme Technology Corp',
+    group_number: 'ACME-88390', active_enrollees: 142, plan_type: 'Gold Premier PPO',
+    monthly_premium_total: 840500, renewal_date: '2027-01-01', wellness_participation_rate: 84,
+    status: 'active', created_at: '2026-01-01T00:00:00Z',
+  };
+
+  it('maps group fields', () => {
+    const g = mapEmployerGroup(row);
+    expect(g.companyName).toBe('Acme Technology Corp');
+    expect(g.groupNumber).toBe('ACME-88390');
+    expect(g.activeEnrollees).toBe(142);
+    expect(g.monthlyPremiumTotal).toBe(840500);
+    expect(g.status).toBe('active');
+  });
+});
+
+describe('mapEmployerMember', () => {
+  const row: EmployerMemberRow = {
+    id: 'em-1', employer_group_id: 'eg-1', organization_id: 'org-3', full_name: 'Sarah Jenkins',
+    job_role: 'Staff Software Engineer', plan: 'SBOS Gold Premier PPO', status: 'Enrolled',
+    dependents: 2, premium_monthly: 620, created_at: '2026-01-01T00:00:00Z',
+  };
+
+  it('maps roster member fields', () => {
+    const m = mapEmployerMember(row);
+    expect(m.name).toBe('Sarah Jenkins');
+    expect(m.role).toBe('Staff Software Engineer');
+    expect(m.dependents).toBe(2);
+    expect(m.premiumMonthly).toBe(620);
+    expect(m.status).toBe('Enrolled');
   });
 });

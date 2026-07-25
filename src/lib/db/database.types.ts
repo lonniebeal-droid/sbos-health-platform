@@ -263,6 +263,33 @@ export interface AuditLogWithActor extends AuditLogRow {
   actor: { full_name: string } | null;
 }
 
+export interface EmployerGroupRow {
+  id: string;
+  organization_id: string | null;
+  company_name: string;
+  group_number: string | null;
+  active_enrollees: number;
+  plan_type: string | null;
+  monthly_premium_total: number;
+  renewal_date: string | null;
+  wellness_participation_rate: number;
+  status: 'active' | 'pending_renewal';
+  created_at: string;
+}
+
+export interface EmployerMemberRow {
+  id: string;
+  employer_group_id: string | null;
+  organization_id: string | null;
+  full_name: string;
+  job_role: string | null;
+  plan: string | null;
+  status: string;
+  dependents: number;
+  premium_monthly: number;
+  created_at: string;
+}
+
 // Insert payloads: id/created_at/defaults are DB-generated, so omit them.
 export type OrganizationInsert = Omit<OrganizationRow, 'id' | 'created_at' | 'updated_at'>;
 export type AppointmentInsert = Omit<AppointmentRow, 'id' | 'created_at'>;
@@ -282,6 +309,8 @@ export interface Database {
   lab_results: LabResultRow;
   medical_records: MedicalRecordRow;
   benefits_plans: BenefitsPlanRow;
+  employer_groups: EmployerGroupRow;
+  employer_members: EmployerMemberRow;
   audit_logs: AuditLogRow;
 }
 
