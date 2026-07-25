@@ -68,3 +68,10 @@ history), P4 Provider workspace, P5 Admin platform, P6 Jessie AI. See ROADMAP.md
 ## Verification status
 `npm run lint` ✅ · `npm test` ✅ 55 · `npm run build` ✅ (as of `2c98ba6`).
 Live DB checks blocked by the disk issue above.
+
+## Planning & analysis artifacts (2026-07-25, verified against code)
+- `AUDIT.md` — code audit + doc verification + mock inventory.
+- `DEPENDENCY_GRAPH.md` — offline-buildable vs credential/infra-blocked modules.
+- `CHECKLISTS.md` — per-module implementation checklists.
+- `RUNBOOKS.md` — local / staging / production deployment runbooks.
+- `RELEASE_PLAN.md` — MVP → Beta → RC → 1.0 with exit criteria.

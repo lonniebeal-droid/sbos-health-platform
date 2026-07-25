@@ -36,8 +36,12 @@ Status legend: **Complete** (real, works, tested) · **Partial** · **Scaffolded
 - **Files:** `components/provider/*`, `components/rcm/*`, `ProviderDashboard.tsx`.
 - **Features (live):** patient directory, clinical documentation (BIRP persist),
   prior auth, messages.
+- **Mock-only (verified):** `rcm/ElectronicPrescribing.tsx` (e-Rx) and
+  `rcm/LabIntegrationHub.tsx` (labs) still render `data/mockData` even though the
+  `prescriptions` and `lab_results` tables exist — straightforward offline wiring.
 - **Remaining:** schedule management, today's appointments, caseload, tasks,
-  notifications, patient timeline, clinical dashboard (Not started — net-new UI).
+  notifications, patient timeline, clinical dashboard (Not started — net-new UI);
+  wire e-Rx + labs to their tables.
 
 ### Employer Portal
 - **Status:** Complete (core) · **Progress:** 80%
