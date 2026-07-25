@@ -35,3 +35,42 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build -t sbos-health:ci .
+
+      - name: Run container
+        run: docker run -d --name sbos-ci -p 3000:3000 sbos-health:ci
+
+      - name: Smoke-test runtime contract
+        run: |
+          # Wait for the server to accept connections.
+          for i in $(seq 1 40); do
+            curl -sf http://localhost:3000/api/health >/dev/null && break
+            sleep 1
+          done
+          set -e
+          check() { # url expected-status
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$1")
+            echo "GET $1 -> $code (expected $2)"
+            test "$code" = "$2"
+          }
+          check http://localhost:3000/api/health 200
+          check http://localhost:3000/api/docs/openapi.json 200   # served from docs/
+          check http://localhost:3000/ 200                        # SPA index
+          check http://localhost:3000/api/appointments 404        # removed stub
+          echo "runtime contract OK"
+
+      - name: Container logs (on failure)
+        if: failure()
+        run: docker logs sbos-ci || true
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f sbos-ci || true
