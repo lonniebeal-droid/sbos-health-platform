@@ -1,0 +1,87 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SBOS HealthOS Enterprise API",
+    "description": "Production-grade multi-tenant REST and GraphQL API for SBOS HealthOS Operating System.",
+    "version": "3.4.0-enterprise",
+    "contact": {
+      "name": "SBOS Developer Platform",
+      "email": "dev-support@sbos.health"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api",
+      "description": "SBOS Development Platform Server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check and system status",
+        "responses": {
+          "200": { "description": "System operational" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Authenticate user profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" },
+                  "tenantId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Authentication token and profile payload returned" }
+        }
+      }
+    },
+    "/appointments": {
+      "get": {
+        "summary": "Get tenant appointments",
+        "parameters": [
+          { "name": "tenantId", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "List of scheduled appointments" }
+        }
+      },
+      "post": {
+        "summary": "Book a new appointment",
+        "responses": {
+          "200": { "description": "Appointment confirmed" }
+        }
+      }
+    },
+    "/messages": {
+      "get": { "summary": "Get patient/provider secure messages" },
+      "post": { "summary": "Send encrypted HIPAA patient message" }
+    },
+    "/telehealth/rooms": {
+      "post": { "summary": "Generate WebRTC room signaling token" }
+    },
+    "/billing/checkout-session": {
+      "post": { "summary": "Create Stripe subscription checkout session" }
+    },
+    "/notifications/sms": {
+      "post": { "summary": "Send SMS notification via Twilio" }
+    },
+    "/audit/logs": {
+      "get": { "summary": "Retrieve immutable HIPAA audit trails" }
+    },
+    "/graphql": {
+      "post": { "summary": "GraphQL Endpoint for multi-tenant queries" }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "SBOS HealthOS",
+  "description": "White-Label Multi-Tenant Healthcare Operating System supporting healthcare organizations, insurance plans, behavioral health networks, employers, and hospital systems.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
