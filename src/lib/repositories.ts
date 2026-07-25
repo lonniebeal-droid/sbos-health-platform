@@ -21,7 +21,7 @@ import type {
   LabResultRow,
   MedicalRecordRow,
   BenefitsPlanRow,
-  AuditLogRow, AuditLogInsert,
+  AuditLogRow, AuditLogWithActor, AuditLogInsert,
 } from './db/database.types';
 
 /** Throw on a Postgrest error, otherwise return the data. */
@@ -177,6 +177,14 @@ export function createRepositories(client: SupabaseClient) {
       async list(): Promise<AuditLogRow[]> {
         return unwrap<AuditLogRow[]>(
           await client.from('audit_logs').select('*').order('timestamp', { ascending: false }),
+        );
+      },
+      /** Audit logs with the actor's display name (via actor_id -> users). */
+      async listDetailed(): Promise<AuditLogWithActor[]> {
+        return unwrap<AuditLogWithActor[]>(
+          await client.from('audit_logs')
+            .select('*, actor:users(full_name)')
+            .order('timestamp', { ascending: false }),
         );
       },
       async record(entry: AuditLogInsert): Promise<AuditLogRow> {

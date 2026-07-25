@@ -242,6 +242,11 @@ export interface AuditLogRow {
   timestamp: string;
 }
 
+/** An audit log row with the actor's display name (via actor_id -> users). */
+export interface AuditLogWithActor extends AuditLogRow {
+  actor: { full_name: string } | null;
+}
+
 // Insert payloads: id/created_at/defaults are DB-generated, so omit them.
 export type OrganizationInsert = Omit<OrganizationRow, 'id' | 'created_at' | 'updated_at'>;
 export type AppointmentInsert = Omit<AppointmentRow, 'id' | 'created_at'>;

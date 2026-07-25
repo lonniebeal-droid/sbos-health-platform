@@ -1,11 +1,30 @@
 import React, { useState } from 'react';
 import { Shield, ShieldCheck, Database, Key, Activity, Server, FileText, CheckCircle2, Lock, Users, Terminal, Building2 } from 'lucide-react';
 import { TenantManagement } from './TenantManagement';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { useAsync } from '../../lib/hooks/useAsync';
 
 interface AdminPortalProps {
   activeTenantId?: string;
   onSelectTenant?: (tenantId: string) => void;
 }
+
+interface AuditRow {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  detail: string;
+  ip: string;
+}
+
+const FALLBACK_AUDIT_LOGS: AuditRow[] = [
+  { id: 'log_01', timestamp: '2026-07-24 19:04:12', actor: 'Dr. James Wilson (NPI 1882901230)', action: 'EHR Record Access', detail: 'Viewed Patient #pat_001 (Sarah Jenkins) vitals & allergies', ip: '192.168.1.45' },
+  { id: 'log_02', timestamp: '2026-07-24 18:52:01', actor: 'System Auto-Adjudicator', action: 'EDI 837 Adjudication', detail: 'Claim #CLM-99201 approved for $1,100.00', ip: 'internal-pod-02' },
+  { id: 'log_03', timestamp: '2026-07-24 17:10:44', actor: 'Sarah Jenkins (Member)', action: 'Telehealth Session Initiated', detail: 'Started 256-bit encrypted WebRTC video stream', ip: '73.189.201.12' },
+  { id: 'log_04', timestamp: '2026-07-24 16:30:00', actor: 'Jessie AI Engine', action: 'BIRP Clinical Note Generation', detail: 'Generated CPT 90837 and ICD F41.1 suggestions', ip: 'ai-engine-cloud' },
+];
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({
   activeTenantId = 'tnt_001',
@@ -13,12 +32,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'tenants' | 'audit' | 'system'>('tenants');
 
-  const auditLogs = [
-    { id: 'log_01', timestamp: '2026-07-24 19:04:12', actor: 'Dr. James Wilson (NPI 1882901230)', action: 'EHR Record Access', detail: 'Viewed Patient #pat_001 (Sarah Jenkins) vitals & allergies', ip: '192.168.1.45', hipaaVerified: true },
-    { id: 'log_02', timestamp: '2026-07-24 18:52:01', actor: 'System Auto-Adjudicator', action: 'EDI 837 Adjudication', detail: 'Claim #CLM-99201 approved for $1,100.00', ip: 'internal-pod-02', hipaaVerified: true },
-    { id: 'log_03', timestamp: '2026-07-24 17:10:44', actor: 'Sarah Jenkins (Member)', action: 'Telehealth Session Initiated', detail: 'Started 256-bit encrypted WebRTC video stream', ip: '73.189.201.12', hipaaVerified: true },
-    { id: 'log_04', timestamp: '2026-07-24 16:30:00', actor: 'Jessie AI Engine', action: 'BIRP Clinical Note Generation', detail: 'Generated CPT 90837 and ICD F41.1 suggestions', ip: 'ai-engine-cloud', hipaaVerified: true }
-  ];
+  // Real, org-scoped audit trail (admins see their organization's logs via RLS).
+  const { data: liveLogs } = useAsync<AuditRow[]>(
+    async () =>
+      (await getRepositories().auditLogs.listDetailed()).map((row) => ({
+        id: row.id,
+        timestamp: new Date(row.timestamp).toLocaleString(),
+        actor: row.actor?.full_name ?? (row.actor_id ? 'User ' + row.actor_id.slice(0, 8) : 'System'),
+        action: row.action,
+        detail: row.resource_id ? `${row.resource_type}: ${row.resource_id}` : row.resource_type,
+        ip: row.ip_address ?? '—',
+      })),
+    isSupabaseConfigured,
+  );
+  const auditLogs: AuditRow[] =
+    isSupabaseConfigured && liveLogs && liveLogs.length > 0 ? liveLogs : FALLBACK_AUDIT_LOGS;
 
   return (
     <div className="space-y-6">
