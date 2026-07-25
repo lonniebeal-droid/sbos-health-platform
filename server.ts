@@ -48,7 +48,7 @@ app.use((_req, res, next) => {
 
 // Fixed-window, per-IP in-memory rate limiter. Adequate for a single instance;
 // for multi-instance deployments replace the Map with a shared store (Redis).
-function rateLimit(opts: { windowMs: number; max: number; key: string }) {
+export function rateLimit(opts: { windowMs: number; max: number; key: string }) {
   const hits = new Map<string, { count: number; resetAt: number }>();
   return (
     req: express.Request,
@@ -194,11 +194,11 @@ Help HR directors with employee plan comparisons, open enrollment questions, wel
       ]
     });
   } catch (error: any) {
+    // Log full detail server-side; return a generic message so internal error
+    // text (SDK internals, keys in messages) never leaks to the client —
+    // consistent with the clinical-notes and fraud-analysis handlers.
     console.error('Error in /api/ai/chat:', error);
-    return res.status(500).json({
-      error: 'Failed to process AI chat query',
-      details: error?.message || 'Server error',
-    });
+    return res.status(500).json({ error: 'Failed to process AI chat query' });
   }
 });
 
@@ -370,4 +370,9 @@ async function startServer() {
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-startServer();
+// Auto-start when run as the app (dev via tsx, prod via dist/server.cjs), but
+// NOT under Vitest, so unit tests can import this module (e.g. `rateLimit`)
+// without binding a port or booting Vite.
+if (!process.env.VITEST) {
+  startServer();
+}
