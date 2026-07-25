@@ -147,6 +147,10 @@ and pushed; CI (`build-and-test` + a `docker` smoke-test job) is green.
   AI request) and added an upstream `GEMINI_TIMEOUT_MS` (default 30s) so a hung
   Gemini call can't hold a request open indefinitely. Tests assert reuse +
   rebuild-on-key-change (48 tests total).
+- **Reliability + CI security:** added `unhandledRejection`/`uncaughtException`
+  process handlers (log; exit non-zero on uncaught so the orchestrator restarts
+  a clean instance); set least-privilege `permissions: contents: read` on the
+  CI workflow.
 
 Backend follow-ups needing credentials or a decision: authenticate `/api/ai/*`
 (needs the Supabase JWT secret), shared-store rate limiter for multi-instance,

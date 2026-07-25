@@ -382,6 +382,20 @@ async function startServer() {
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+
+  // Observability + reliability: surface process-level faults instead of
+  // failing silently. A rejected promise that reaches here is a bug we want in
+  // the logs; an uncaught exception leaves the process in an undefined state,
+  // so log it and exit non-zero to let the orchestrator (compose restart:always
+  // / Cloud Run) restart a clean instance.
+  process.on('unhandledRejection', (reason) => {
+    console.error('[SBOS Platform] Unhandled promise rejection:', reason);
+  });
+  process.on('uncaughtException', (err) => {
+    console.error('[SBOS Platform] Uncaught exception — exiting:', err);
+    server.close(() => process.exit(1));
+    setTimeout(() => process.exit(1), 10_000).unref();
+  });
 }
 
 // Auto-start when run as the app (dev via tsx, prod via dist/server.cjs), but
