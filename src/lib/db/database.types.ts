@@ -209,6 +209,27 @@ export interface MedicalRecordRow {
   created_at: string;
 }
 
+export interface BenefitsPlanRow {
+  id: string;
+  patient_id: string | null;
+  organization_id: string | null;
+  plan_id: string;
+  plan_name: string;
+  network_type: 'PPO' | 'HMO' | 'EPO';
+  individual_deductible: number;
+  deductible_met: number;
+  out_of_pocket_max: number;
+  out_of_pocket_met: number;
+  copays: {
+    primaryCare: number;
+    specialist: number;
+    urgentCare: number;
+    emergencyRoom: number;
+    genericRx: number;
+  };
+  created_at: string;
+}
+
 export interface AuditLogRow {
   id: string;
   organization_id: string | null;
@@ -239,6 +260,7 @@ export interface Database {
   prior_authorizations: PriorAuthorizationRow;
   lab_results: LabResultRow;
   medical_records: MedicalRecordRow;
+  benefits_plans: BenefitsPlanRow;
   audit_logs: AuditLogRow;
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -213,5 +213,28 @@ describe('mapMedicalRecord', () => {
     expect(r.date).toBe('2026-07-15');
     expect(r.status).toBe('normal');
     expect(r.fileUrl).toBeUndefined();
+  });
+});
+
+describe('mapBenefitsPlan', () => {
+  const row: BenefitsPlanRow = {
+    id: 'bp-1', patient_id: 'pat-1', organization_id: 'org-1',
+    plan_id: 'SBOS-GOLD-PPO-2026', plan_name: 'Gold Premier PPO', network_type: 'PPO',
+    individual_deductible: 1500, deductible_met: 1250, out_of_pocket_max: 4500, out_of_pocket_met: 1680,
+    copays: { primaryCare: 20, specialist: 45, urgentCare: 50, emergencyRoom: 250, genericRx: 10 },
+    created_at: '2026-01-01T00:00:00Z',
+  };
+
+  it('maps plan fields and copays', () => {
+    const p = mapBenefitsPlan(row);
+    expect(p.planId).toBe('SBOS-GOLD-PPO-2026');
+    expect(p.networkType).toBe('PPO');
+    expect(p.individualDeductible).toBe(1500);
+    expect(p.copays.specialist).toBe(45);
+  });
+
+  it('defaults copays when missing', () => {
+    const p = mapBenefitsPlan({ ...row, copays: {} as BenefitsPlanRow['copays'] });
+    expect(p.copays.primaryCare).toBe(0);
   });
 });

@@ -8,8 +8,28 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow } from './database.types';
+import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow } from './database.types';
+
+/** BenefitsPlanRow -> the UI BenefitsPlan domain type. */
+export function mapBenefitsPlan(row: BenefitsPlanRow): BenefitsPlan {
+  return {
+    planId: row.plan_id,
+    planName: row.plan_name,
+    networkType: row.network_type,
+    individualDeductible: row.individual_deductible,
+    deductibleMet: row.deductible_met,
+    outOfPocketMax: row.out_of_pocket_max,
+    outOfPocketMet: row.out_of_pocket_met,
+    copays: {
+      primaryCare: row.copays?.primaryCare ?? 0,
+      specialist: row.copays?.specialist ?? 0,
+      urgentCare: row.copays?.urgentCare ?? 0,
+      emergencyRoom: row.copays?.emergencyRoom ?? 0,
+      genericRx: row.copays?.genericRx ?? 0,
+    },
+  };
+}
 
 /** MedicalRecordRow -> the UI MedicalRecord domain type. */
 export function mapMedicalRecord(row: MedicalRecordRow): MedicalRecord {
