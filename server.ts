@@ -14,7 +14,76 @@ const PORT = Number(process.env.PORT) || 3000;
 // exact model available on your account/SDK version before relying on this.
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 
-app.use(express.json());
+// ---------------------------
+// SECURITY & HARDENING MIDDLEWARE
+// ---------------------------
+
+// Hide the Express fingerprint.
+app.disable('x-powered-by');
+
+// Trust a single upstream proxy/load balancer so req.ip reflects the client
+// (needed for correct per-IP rate limiting behind a proxy in production).
+app.set('trust proxy', 1);
+
+// Cap request bodies — AI prompts are text; this prevents oversized-payload
+// abuse/DoS. Applies to every JSON route below.
+app.use(express.json({ limit: '256kb' }));
+
+// Security headers (hand-rolled to avoid an extra dependency; mirrors the
+// helmet defaults relevant to a JSON API that also hosts an SPA).
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-DNS-Prefetch-Control', 'off');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains',
+    );
+  }
+  next();
+});
+
+// Fixed-window, per-IP in-memory rate limiter. Adequate for a single instance;
+// for multi-instance deployments replace the Map with a shared store (Redis).
+function rateLimit(opts: { windowMs: number; max: number; key: string }) {
+  const hits = new Map<string, { count: number; resetAt: number }>();
+  return (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const id = `${opts.key}:${ip}`;
+    const now = Date.now();
+    const entry = hits.get(id);
+    if (!entry || entry.resetAt <= now) {
+      hits.set(id, { count: 1, resetAt: now + opts.windowMs });
+    } else {
+      entry.count += 1;
+      if (entry.count > opts.max) {
+        res.setHeader(
+          'Retry-After',
+          String(Math.ceil((entry.resetAt - now) / 1000)),
+        );
+        return res
+          .status(429)
+          .json({ error: 'Too many requests. Please slow down.' });
+      }
+    }
+    // Opportunistic cleanup of expired windows to bound memory.
+    if (hits.size > 5000) {
+      for (const [k, v] of hits) if (v.resetAt <= now) hits.delete(k);
+    }
+    next();
+  };
+}
+
+// Global API budget + a stricter budget on the expensive AI (Gemini) routes.
+app.use('/api', rateLimit({ windowMs: 60_000, max: 120, key: 'global' }));
+app.use('/api/ai', rateLimit({ windowMs: 60_000, max: 15, key: 'ai' }));
 
 // Initialize Google GenAI Server SDK lazily or with fallbacks
 function getGeminiClient() {
@@ -48,10 +117,17 @@ app.get('/api/health', (_req, res) => {
 // AI Conversational Assistant (Jessie AI Receptionist, Care Navigator, Benefits Explainer)
 app.post('/api/ai/chat', async (req, res) => {
   try {
-    const { prompt, context = 'general_patient', conversationHistory = [] } = req.body;
-    
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required' });
+    const { prompt, context = 'general_patient' } = req.body ?? {};
+
+    if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+      return res
+        .status(400)
+        .json({ error: 'prompt is required and must be a non-empty string' });
+    }
+    if (prompt.length > 8000) {
+      return res
+        .status(400)
+        .json({ error: 'prompt exceeds the 8000-character limit' });
     }
 
     const ai = getGeminiClient();
@@ -118,9 +194,16 @@ Help HR directors with employee plan comparisons, open enrollment questions, wel
 // AI Clinical BIRP Documentation & Medical Coding Assistant
 app.post('/api/ai/clinical-notes', async (req, res) => {
   try {
-    const { rawNotes, patientName, visitType } = req.body;
-    if (!rawNotes) {
-      return res.status(400).json({ error: 'rawNotes is required' });
+    const { rawNotes, patientName, visitType } = req.body ?? {};
+    if (typeof rawNotes !== 'string' || rawNotes.trim().length === 0) {
+      return res
+        .status(400)
+        .json({ error: 'rawNotes is required and must be a non-empty string' });
+    }
+    if (rawNotes.length > 20000) {
+      return res
+        .status(400)
+        .json({ error: 'rawNotes exceeds the 20000-character limit' });
     }
 
     const ai = getGeminiClient();
@@ -166,7 +249,12 @@ Format as JSON with keys: behavior, intervention, response, plan, suggestedICD (
 // AI Claims Fraud, Waste & Abuse (FWA) Detector
 app.post('/api/ai/fraud-analysis', async (req, res) => {
   try {
-    const { claimData } = req.body;
+    const { claimData } = req.body ?? {};
+    if (claimData === null || typeof claimData !== 'object') {
+      return res
+        .status(400)
+        .json({ error: 'claimData is required and must be an object' });
+    }
     const ai = getGeminiClient();
 
     if (!ai) {
