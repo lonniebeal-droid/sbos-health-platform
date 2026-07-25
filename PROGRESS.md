@@ -161,6 +161,11 @@ and pushed; CI (`build-and-test` + a `docker` smoke-test job) is green.
   the two structured AI handlers (removed duplicated generateContent/parse) and
   made JSON parsing tolerant of ```json fences the model sometimes emits. 4 new
   parser tests (52 total).
+- **Bug fix (error handling):** the central error handler collapsed every error
+  to HTTP 500, so a malformed JSON body (400) or oversized body (413) — both
+  raised by `express.json()` — returned a misleading 500. Now honors 4xx client
+  statuses with generic messages. Verified in-container: malformed→400,
+  oversized→413, missing-field→400, valid→200.
 
 Backend follow-ups needing credentials or a decision: authenticate `/api/ai/*`
 (needs the Supabase JWT secret), shared-store rate limiter for multi-instance,

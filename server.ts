@@ -367,6 +367,10 @@ async function startServer() {
   }
 
   // Centralized error handler: consistent JSON, never leak stack traces.
+  // Honor client-error statuses raised by upstream middleware — most importantly
+  // express.json(), which rejects a malformed body with status 400 and an
+  // oversized body with 413. Collapsing those into 500 (as before) both
+  // misleads clients and hides real server faults in the logs.
   app.use(
     (
       err: unknown,
@@ -374,8 +378,29 @@ async function startServer() {
       res: express.Response,
       _next: express.NextFunction,
     ) => {
-      console.error('[SBOS] Unhandled error:', err);
       if (res.headersSent) return;
+      const e = err as { status?: number; statusCode?: number; type?: string };
+      const status =
+        typeof e?.status === 'number'
+          ? e.status
+          : typeof e?.statusCode === 'number'
+            ? e.statusCode
+            : 500;
+
+      if (status >= 400 && status < 500) {
+        // Expected client error — log at a lower level, return the right code
+        // with a generic (non-leaking) message.
+        console.warn(`[SBOS] ${status} client error (${e?.type ?? 'request'})`);
+        const message =
+          status === 413
+            ? 'Payload too large'
+            : status === 400
+              ? 'Malformed request body'
+              : 'Bad request';
+        return res.status(status).json({ error: message });
+      }
+
+      console.error('[SBOS] Unhandled error:', err);
       res.status(500).json({ error: 'Internal server error' });
     },
   );
