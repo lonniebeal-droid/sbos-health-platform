@@ -7,8 +7,17 @@ projects/branches are never merged together._
 ## Snapshot
 - **Repo:** `sbos-health-platform` (only). Never touch `sbos-monorepo`.
 - **Branch:** `frontend-ehr-2` (pushed; **not merged**). Worktree: `.claude/worktrees/claims`.
-- **Tests:** 52 passing. **Build:** green. **Typecheck:** clean.
+- **Tests:** 55 passing. **Build:** green. **Typecheck:** clean.
 - **Local backend:** Colima + Supabase (`supabase start`; `supabase db reset`).
+- **Full manual:** see `docs/operations/*` (PROJECT_STATUS is the dashboard).
+- **⚠️ Blocker:** host disk filled up and killed the local Supabase containers —
+  free disk, then `colima start` / `supabase start` / `supabase db reset` before
+  live DB work. Also re-verify messaging RLS per role (code committed, DB was down).
+- **Latest additions:** Secure Messaging (P1), Clinical (P4 core), RCM incl.
+  eligibility RPC (P3), audit logging on note-sign/message-send (P9 partial).
+- **Next task:** P2 Telehealth — `telehealth_sessions` table (status/started/ended,
+  appointment link), session history + notes linked to `clinical_notes`,
+  waiting-room state. Then provider workspace (schedule/tasks/timeline).
 
 ## Delivered (priorities 1–4 + partial 9)
 - **Core EHR on live data:** organizations, auth/login, patient directory,
