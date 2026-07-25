@@ -6,44 +6,64 @@ projects/branches are never merged together._
 
 ## Snapshot
 - **Repo:** `sbos-health-platform` (only). Never touch `sbos-monorepo`.
-- **Branch:** `frontend-ehr-2` (pushed; **not merged** into anything).
-- **Worktree:** `.claude/worktrees/claims`.
-- **Tests:** 47 passing (`npm test`). **Build:** green. **Typecheck:** clean.
+- **Branch:** `frontend-ehr-2` (pushed; **not merged**). Worktree: `.claude/worktrees/claims`.
+- **Tests:** 52 passing. **Build:** green. **Typecheck:** clean.
 - **Local backend:** Colima + Supabase (`supabase start`; `supabase db reset`).
 
-## Components on real (Supabase) data
-organizations, auth/login, patient directory, patient self-profile + vitals,
-prescriptions, appointments, claims (+adjudication), prior authorizations,
-medical records, benefits, provider directory, admin audit trail,
-**employer portal (groups + roster)**, **tenant management (org list + own-org
-settings edit)**.
+## Delivered (priorities 1–4 + partial 9)
+- **Core EHR on live data:** organizations, auth/login, patient directory,
+  patient self-profile + vitals, prescriptions, appointments, medical records,
+  benefits, provider directory, admin audit trail.
+- **P1 Employer:** employer_groups + employer_members, portal on live data.
+- **P2 Tenant mgmt:** org white-label settings + tenant-admin self-service edit
+  (RLS: admin edits only own org). *(Blocked: provisioning new tenants + user
+  invitations — need service-role key / email.)*
+- **P3 RCM:** claims lifecycle (payment posting + denials), billing dashboard,
+  prior authorizations, and **eligibility (270/271)** via a SECURITY DEFINER
+  `check_eligibility` RPC (controlled cross-org lookup).
+- **P4 Clinical:** clinical_notes (BIRP/SOAP/progress) persistence, treatment_plans,
+  assessments; ClinicalDocumentation signs + persists notes.
+- **P9 (partial):** real audit logging — signing a note writes an `audit_logs` row.
 
-## Data-layer pattern (established)
-`src/lib/db/database.types.ts` (row types) -> `src/lib/db/mappers.ts` (row->domain)
--> `src/lib/repositories.ts` (factory repos) -> components via `useAsync`, always
-with a demo-data fallback. Every mapper has Vitest coverage.
+## Data-layer pattern
+`db/database.types.ts` (rows) -> `db/mappers.ts` (row->domain, all unit-tested) ->
+`repositories.ts` (factory repos) + `services/*` -> components via `useAsync`,
+always with a demo-data fallback. RLS: per-org isolation; patient-self read on PHI;
+cross-org access only through audited SECURITY DEFINER RPCs.
 
-## Migrations added on this branch
+## Migrations added on this branch (apply via `supabase db reset`)
 `20260725020000_claims_visibility`, `..030000_medical_records`,
 `..040000_benefits_plans`, `..050000_provider_profile`, `..060000_employer`,
-`..070000_org_settings`. Seed extended with an employer user + employer/tenant data.
+`..070000_org_settings`, `..080000_claims_lifecycle`, `..090000_eligibility_rpc`,
+`..100000_clinical`.
 
 ## Local test accounts (password `Password123!`)
 `provider@bayarea.test` · `patient@bayarea.test` · `payer@sbospremier.test` ·
 `admin@bayarea.test` · `employer@acme.test`
 
-## Blockers (need owner infra/credentials — cannot be done from the browser lane)
-- **Tenant provisioning (create new org) + user invitations / user creation**:
-  require the Supabase **service-role key** (admin auth API) and/or email/SMTP.
-  Must run server-side or via a Supabase edge function holding the secret.
-- Beyond local: hosted Supabase + signed **BAA** before real PHI; production
-  secrets / domain / DNS / payment + clearinghouse credentials.
+## Remaining priorities & their nature
+- **P5 Telehealth:** appointments already carry a room URL. Session history/waiting
+  room = a `telehealth_sessions` table + **net-new UI** (TelehealthRoom exists but
+  is a call shell). Achievable.
+- **P6 Patient:** messaging (`patient_messages` table + net-new thread UI),
+  self-profile editing (add a patient-own UPDATE RLS policy + edit UI), insurance
+  card (data exists), **document uploads (needs Supabase Storage bucket config)**,
+  **bill pay (real payments need Stripe — BLOCKED, credentials)**.
+- **P7 Provider:** schedule/caseload/dashboard/tasks/notifications — mostly
+  **net-new UI** over existing repos (appointments, patients, clinical_notes).
+- **P8 Jessie AI:** wire `/api/ai/*` prompts to real chart data (chart summaries,
+  treatment recommendations) — achievable; voice = future.
+- **P9 Security:** extend audit logging to more PHI reads/writes; full RLS review;
+  input validation. Mostly achievable.
 
-## Immediate next task (achievable without credentials)
-**Priority 3 — Revenue Cycle Management**: Insurance Hub, eligibility
-verification, claims lifecycle transitions, payment posting, denials, and a
-billing dashboard — building on the existing `claims` table/repo. Then Priority 4
-(clinical: progress/BIRP/SOAP notes, treatment plans, assessments, diagnoses).
+## Blockers (owner infra/credentials only)
+Tenant provisioning + user invitations (service-role/email); document uploads
+(Storage bucket) ; bill pay (Stripe); hosted Supabase + BAA before real PHI;
+domain/DNS/production secrets.
+
+## Immediate next task
+**P6 secure messaging** (`patient_messages` table + participant RLS + a thread UI)
+or **P5 telehealth session history** — both achievable without credentials.
 
 ## Commands to resume
 ```bash
