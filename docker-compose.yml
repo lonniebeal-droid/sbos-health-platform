@@ -1,4 +1,5 @@
-version: '3.8'
+# Note: the top-level `version` key is intentionally omitted — it is obsolete
+# in Docker Compose v2 and emits a warning.
 
 services:
   sbos-app:
@@ -11,9 +12,14 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # Model is configurable; defaults to gemini-2.0-flash if unset (parity
+      # with .env.example and the server default).
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
     restart: always
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      # Give the server time to boot before failing checks count against retries.
+      start_period: 15s
