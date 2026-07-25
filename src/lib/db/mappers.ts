@@ -8,8 +8,31 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser } from './database.types';
+import type { AuditLog, Role, Patient, Prescription } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus } from './database.types';
+
+// DB rx_status has expired/discontinued which the UI domain collapses to 'completed'.
+const RX_STATUS_MAP: Record<DbRxStatus, Prescription['status']> = {
+  active: 'active',
+  refill_requested: 'refill_requested',
+  expired: 'completed',
+  discontinued: 'completed',
+};
+
+/** PrescriptionWithProvider -> the UI Prescription domain type. */
+export function mapPrescription(row: PrescriptionWithProvider): Prescription {
+  return {
+    id: row.id,
+    patientId: row.patient_id ?? undefined,
+    medicationName: row.medication_name,
+    dosage: row.dosage,
+    frequency: row.frequency,
+    prescribedBy: row.provider?.user?.full_name ?? 'Unknown Provider',
+    refillsRemaining: row.refills_remaining,
+    pharmacyName: row.pharmacy_name ?? '',
+    status: RX_STATUS_MAP[row.status],
+  };
+}
 
 const EMPTY_VITALS = { bloodPressure: '—', heartRate: 0, spO2: 0, weightLbs: 0, date: '—' };
 

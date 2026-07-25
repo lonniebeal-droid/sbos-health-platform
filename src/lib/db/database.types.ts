@@ -78,6 +78,11 @@ export interface PatientWithUser extends PatientRow {
   user: { full_name: string; email: string; phone: string | null } | null;
 }
 
+/** A prescription with the prescribing provider's name (via provider->user). */
+export interface PrescriptionWithProvider extends PrescriptionRow {
+  provider: { user: { full_name: string } | null } | null;
+}
+
 export interface ProviderRow {
   id: string;
   user_id: string | null;

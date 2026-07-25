@@ -1,21 +1,47 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { samplePrescriptions } from '../../data/mockData';
 import { Prescription } from '../../types';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapPrescription } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
 import { Pill, RefreshCw, MapPin, CheckCircle, Clock, AlertCircle, Phone, Calendar } from 'lucide-react';
 
 export const PrescriptionsView: React.FC = () => {
-  const [prescriptions, setPrescriptions] = useState<Prescription[]>(samplePrescriptions);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
+  // Local overrides so a refill click reflects immediately without a refetch.
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, Prescription['status']>>({});
 
-  const handleRefill = (id: string) => {
-    setPrescriptions((prev) =>
-      prev.map((rx) =>
-        rx.id === id ? { ...rx, status: 'refill_requested' } : rx
-      )
-    );
+  const { data: realRx } = useAsync<Prescription[]>(
+    async () => (await getRepositories().prescriptions.listDetailed()).map(mapPrescription),
+    isSupabaseConfigured,
+  );
+
+  const usingLive = isSupabaseConfigured && !!realRx && realRx.length > 0;
+  const basePrescriptions: Prescription[] = usingLive ? (realRx as Prescription[]) : samplePrescriptions;
+  const prescriptions = basePrescriptions.map((rx) =>
+    statusOverrides[rx.id] ? { ...rx, status: statusOverrides[rx.id] } : rx,
+  );
+
+  const handleRefill = async (id: string) => {
+    setStatusOverrides((prev) => ({ ...prev, [id]: 'refill_requested' }));
     setRequestSuccess(id);
+    if (usingLive) {
+      try {
+        await getRepositories().prescriptions.requestRefill(id);
+      } catch {
+        // Revert the optimistic update on failure.
+        setStatusOverrides((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
+    }
     setTimeout(() => setRequestSuccess(null), 3000);
   };
+
+  useEffect(() => { setStatusOverrides({}); }, [usingLive]);
 
   return (
     <div className="space-y-6">

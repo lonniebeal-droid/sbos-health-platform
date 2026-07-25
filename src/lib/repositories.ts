@@ -16,7 +16,7 @@ import type {
   PatientRow, PatientWithUser, ProviderRow,
   AppointmentRow, AppointmentInsert, DbAppointmentStatus,
   ClaimRow, DbClaimStatus,
-  PrescriptionRow,
+  PrescriptionRow, PrescriptionWithProvider,
   PriorAuthorizationRow, PriorAuthorizationInsert, DbPriorAuthStatus,
   LabResultRow,
   AuditLogRow, AuditLogInsert,
@@ -108,6 +108,15 @@ export function createRepositories(client: SupabaseClient) {
 
     prescriptions: {
       ...crud<PrescriptionRow>(client, 'prescriptions'),
+      /** Prescriptions with the prescribing provider's name. */
+      async listDetailed(): Promise<PrescriptionWithProvider[]> {
+        return unwrap<PrescriptionWithProvider[]>(
+          await client
+            .from('prescriptions')
+            .select('*, provider:providers(user:users(full_name))')
+            .order('created_at'),
+        );
+      },
       async requestRefill(id: string): Promise<PrescriptionRow> {
         return unwrap<PrescriptionRow>(
           await client.from('prescriptions')
