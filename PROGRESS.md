@@ -40,8 +40,8 @@ This is a living checkpoint. Update it as milestones land.
   Supabase is configured, derives role from the profile, supports sign-out;
   dev-fallback (no login) when unconfigured so a fresh clone still runs.
 - **Org context** loads real organizations (fallback to sample).
-- **Mock→real migrations done:** provider Patient Directory, patient Prescriptions
-  (both live, RLS-scoped, with demo fallback + Live/Demo indicator).
+- **Mock→real migrations done:** provider Patient Directory, patient Prescriptions,
+  and patient Dashboard appointments (all live, RLS-scoped, with demo fallback).
 
 ### Local test accounts (password `Password123!`)
 `provider@bayarea.test` · `patient@bayarea.test` · `payer@sbospremier.test` · `admin@bayarea.test`
@@ -100,9 +100,10 @@ docs: replace fabricated reports with verified ground-truth audit
 ---
 
 ## Exact next recommended step
-Migrate **appointments** to real data: add `appointments.listDetailed()` (join
-patient + provider names), a `mapAppointment()` (map `appointment_type` →
-telehealth/in_person, `scheduled_at` → date/time, `chief_complaint` → reason,
-`telehealth_room_url` → meetLink), then wire the patient dashboard's appointment
-list and the provider view via `useAsync`, with the demo-data fallback. Verify
-with `supabase db reset` + a signed-in query, then `npm test` and `npm run build`.
+Migrate **claims** to real data: add `claims.listDetailed()` (join patient +
+provider names), a `mapClaim()` (map `icd10_codes`/`cpt_codes`, amounts, status,
+ai_risk_*), then wire `ClaimsTracker` (patient) and `InsuranceClaimsCenter`
+(payer) via `useAsync` with demo fallback. Note claims RLS is payer-scoped, so
+the patient view will need a provider/patient-side claims policy (see TECH_DEBT
+item 23) — add that policy in the same migration. Verify with `supabase db reset`
++ signed-in queries for both a payer and a patient, then `npm test` + `npm run build`.

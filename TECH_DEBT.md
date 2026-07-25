@@ -24,7 +24,7 @@ Priority: **P0** = blocks correctness/security · **P1** = blocks real features 
 | # | Item | Detail |
 |---|---|---|
 | 8 | **RBAC never enforced** | `permissions.ts` is correct and unit-tested but not yet called by any route or UI guard. Also not yet enforced in RLS (tenant isolation is; per-role writes are not). |
-| 9 | **Components still import mocks directly** | ~19 of 21 components still import `data/mock*`. Migrated so far: PatientManagement (patient directory) and PrescriptionsView. Continue one domain at a time via the repository/`useAsync` pattern. |
+| 9 | **Components still import mocks directly** | ~18 of 21 components still import `data/mock*`. Migrated so far: PatientManagement, PrescriptionsView, and PatientDashboard appointments. Continue one domain at a time via the repository/`useAsync` pattern. |
 | 10 | **Inconsistent org/tenant sources** | `server.ts /api/tenants`, `mockTenants.ts`, and SQL seeds still disagree. `organizationContext.tsx` now loads real orgs from Supabase; consolidate the rest. |
 | 22 | **Schema thinner than UI domain types** | No columns/tables for: patient vitals, family members, primaryCarePhysician; provider rating/bio/avatar/affiliation; patient_messages, benefits_plans, medical_records. Add these before those views can use real data. |
 | 23 | **Claims RLS is payer-only** | `claims_payer_tenant` isolates by `payer_organization_id`; provider-side visibility not yet modeled. |
