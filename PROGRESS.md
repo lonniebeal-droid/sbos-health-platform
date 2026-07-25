@@ -1,10 +1,12 @@
 # SBOS HealthOS — Engineering Progress & Handoff
 
-**Branch:** `phase-0-foundations` (not pushed) · **Last updated:** 2026-07-25
-**State:** compiles (`tsc` clean) · 30 tests pass · production build succeeds · local
+**Branch:** `phase-0-foundations` (pushed to origin) · **Last updated:** 2026-07-25
+**State:** compiles (`tsc` clean) · 33 tests pass · production build succeeds · local
 Supabase stack running.
 
 This is a living checkpoint. Update it as milestones land.
+**Resume brief:** [`docs/NEXT_SESSION.md`](docs/NEXT_SESSION.md) ·
+**Task list:** [`docs/TODO.md`](docs/TODO.md)
 
 ---
 
