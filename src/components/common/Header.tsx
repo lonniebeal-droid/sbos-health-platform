@@ -15,11 +15,12 @@ import {
   Stethoscope, 
   Building2, 
   Briefcase, 
-  Settings, 
+  Settings,
   ChevronDown,
   Activity,
   PhoneCall,
-  Globe
+  Globe,
+  LogOut
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -30,6 +31,11 @@ interface HeaderProps {
   onOpenAIAssistant: () => void;
   activeTenantId?: string;
   onSelectTenant?: (tenantId: string) => void;
+  // Real authenticated-user info. When omitted, the header falls back to mock
+  // data (dev mode without Supabase). onSignOut renders a sign-out control.
+  userName?: string;
+  userOrg?: string;
+  onSignOut?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -39,12 +45,17 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   onOpenAIAssistant,
   activeTenantId = 'tnt_001',
-  onSelectTenant = (_tenantId: string) => {}
+  onSelectTenant = (_tenantId: string) => {},
+  userName,
+  userOrg,
+  onSignOut
 }) => {
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showTenantDropdown, setShowTenantDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const currentUser: UserProfile = mockUsers[activeRole];
+  const displayName = userName ?? currentUser.name;
+  const displayOrg = userOrg ?? currentUser.organization;
   const currentTenant = mockTenants.find((t) => t.id === activeTenantId) || mockTenants[0];
 
   const roleConfigs: { role: Role; label: string; icon: React.ReactNode; color: string }[] = [
@@ -238,13 +249,24 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
               <img
                 src={currentUser.avatar}
-                alt={currentUser.name}
+                alt={displayName}
                 className="w-8 h-8 rounded-full object-cover ring-2 ring-blue-500/30"
               />
               <div className="hidden xl:block text-left text-xs">
-                <p className="font-bold text-slate-900 dark:text-white leading-tight">{currentUser.name}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[120px]">{currentUser.organization}</p>
+                <p className="font-bold text-slate-900 dark:text-white leading-tight">{displayName}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[120px]">{displayOrg}</p>
               </div>
+              {onSignOut && (
+                <button
+                  id="sign-out-btn"
+                  onClick={onSignOut}
+                  aria-label="Sign out"
+                  title="Sign out"
+                  className="ml-1 p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
           </div>
