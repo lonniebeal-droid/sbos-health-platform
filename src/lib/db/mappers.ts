@@ -8,8 +8,53 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider, EmployerGroup, EmployerMember } from '../../types';
+import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider, EmployerGroup, EmployerMember, TenantOrganization, TenantType } from '../../types';
 import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow } from './database.types';
+
+// DB org type -> UI TenantType (the UI uses a slightly different vocabulary).
+const ORG_TYPE_TO_TENANT: Record<DbOrgType, TenantType> = {
+  health_system: 'health_system',
+  payer: 'health_plan',
+  employer_group: 'employer_group',
+  clinic: 'clinic_network',
+};
+
+/** OrganizationRow -> the rich TenantOrganization view (white-label admin). */
+export function mapOrganizationToTenant(row: OrganizationRow): TenantOrganization {
+  const planTier = (row.plan_tier as TenantOrganization['billing']['planTier']) ?? 'Enterprise SaaS';
+  return {
+    id: row.id,
+    name: row.name,
+    subdomain: row.subdomain ?? '',
+    customDomain: row.custom_domain ?? '',
+    tenantType: ORG_TYPE_TO_TENANT[row.type],
+    primaryColor: row.primary_color ?? 'from-blue-600 to-indigo-600',
+    accentColor: row.accent_color ?? '#2563eb',
+    billing: {
+      planTier,
+      monthlyRate: row.monthly_rate,
+      activeEnrollees: row.active_enrollees,
+      renewalDate: row.renewal_date ?? '',
+      status: (row.billing_status as TenantOrganization['billing']['status']) ?? 'active',
+    },
+    permissions: {
+      telehealthEnabled: row.permissions?.telehealthEnabled ?? true,
+      rcmEdiEnabled: row.permissions?.rcmEdiEnabled ?? true,
+      priorAuthAiEnabled: row.permissions?.priorAuthAiEnabled ?? true,
+      behavioralHealthEnabled: row.permissions?.behavioralHealthEnabled ?? true,
+      employerPortalEnabled: row.permissions?.employerPortalEnabled ?? true,
+      mfaEnforced: row.permissions?.mfaEnforced ?? true,
+    },
+    branding: {
+      portalTitle: row.branding?.portalTitle ?? `${row.name} Care Portal`,
+      tagline: row.branding?.tagline ?? '',
+      supportEmail: row.branding?.supportEmail ?? '',
+      supportPhone: row.branding?.supportPhone ?? '',
+      brandThemeColor: row.branding?.brandThemeColor ?? 'blue',
+    },
+    usersCount: row.users_count,
+  };
+}
 
 /** EmployerGroupRow -> the UI EmployerGroup domain type. */
 export function mapEmployerGroup(row: EmployerGroupRow): EmployerGroup {

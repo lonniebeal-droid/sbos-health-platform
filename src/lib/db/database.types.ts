@@ -17,15 +17,52 @@ export type DbPriorAuthStatus = 'pending' | 'approved' | 'denied' | 'info_reques
 export type DbOrgType = 'health_system' | 'payer' | 'employer_group' | 'clinic';
 
 // ----- Row types (SELECT result shape) -----
+export interface OrgPermissions {
+  telehealthEnabled: boolean;
+  rcmEdiEnabled: boolean;
+  priorAuthAiEnabled: boolean;
+  behavioralHealthEnabled: boolean;
+  employerPortalEnabled: boolean;
+  mfaEnforced: boolean;
+}
+
+export interface OrgBranding {
+  portalTitle?: string;
+  tagline?: string;
+  supportEmail?: string;
+  supportPhone?: string;
+  brandThemeColor?: string;
+}
+
 export interface OrganizationRow {
   id: string;
   name: string;
   type: DbOrgType;
   tax_id: string | null;
   npi: string | null;
+  subdomain: string | null;
+  custom_domain: string | null;
+  primary_color: string | null;
+  accent_color: string | null;
+  plan_tier: string | null;
+  monthly_rate: number;
+  active_enrollees: number;
+  renewal_date: string | null;
+  billing_status: string;
+  users_count: number;
+  permissions: OrgPermissions;
+  branding: OrgBranding;
   created_at: string;
   updated_at: string;
 }
+
+/** Fields a tenant admin may update on their own organization. */
+export type OrganizationUpdate = Partial<
+  Pick<OrganizationRow,
+    'name' | 'subdomain' | 'custom_domain' | 'primary_color' | 'accent_color' |
+    'plan_tier' | 'monthly_rate' | 'active_enrollees' | 'renewal_date' |
+    'billing_status' | 'permissions' | 'branding'>
+>;
 
 // `public.users` is a PROFILE table keyed to auth.users(id). Passwords live in
 // Supabase Auth (auth.users), never here.

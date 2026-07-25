@@ -8,10 +8,11 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireSupabase } from './supabaseClient';
-import { mapOrganizationToTenantOrg, mapAuditLog } from './db/mappers';
+import { mapOrganizationToTenantOrg, mapOrganizationToTenant, mapAuditLog } from './db/mappers';
 import type { TenantOrg } from './organizationContext';
+import type { TenantOrganization } from '../types';
 import type {
-  OrganizationRow, OrganizationInsert,
+  OrganizationRow, OrganizationInsert, OrganizationUpdate,
   UserRow,
   PatientRow, PatientWithUser, ProviderRow, ProviderWithUser,
   AppointmentRow, AppointmentInsert, AppointmentWithNames, DbAppointmentStatus,
@@ -59,6 +60,19 @@ export function createRepositories(client: SupabaseClient) {
           await client.from('organizations').select('*').order('name'),
         );
         return rows.map(mapOrganizationToTenantOrg);
+      },
+      /** Rich white-label view for the admin tenant-management console. */
+      async listAsTenants(): Promise<TenantOrganization[]> {
+        const rows = unwrap<OrganizationRow[]>(
+          await client.from('organizations').select('*').order('name'),
+        );
+        return rows.map(mapOrganizationToTenant);
+      },
+      /** Tenant-admin edit of their own organization (RLS enforces ownership). */
+      async update(id: string, payload: OrganizationUpdate): Promise<OrganizationRow> {
+        return unwrap<OrganizationRow>(
+          await client.from('organizations').update(payload).eq('id', id).select().single(),
+        );
       },
     },
 

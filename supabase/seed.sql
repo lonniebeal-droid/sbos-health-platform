@@ -126,6 +126,26 @@ VALUES
   ('ae000000-0000-0000-0000-000000000004', 'ad000000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333', 'David Kim', 'DevOps Engineer', 'Pending Enrollment', 'Action Required', 0, 0)
 ON CONFLICT (id) DO NOTHING;
 
+-- White-label settings for the seeded organizations (tenant-management console).
+UPDATE public.organizations SET
+  subdomain = 'bayarea.sbos.health', custom_domain = 'portal.bayareahealth.org',
+  plan_tier = 'Health System Custom', monthly_rate = 68000, active_enrollees = 18500,
+  renewal_date = '2027-01-01', billing_status = 'active', users_count = 640,
+  branding = '{"portalTitle":"Bay Area Health Portal","tagline":"Compassionate regional care","supportEmail":"support@bayareahealth.org","supportPhone":"+1 (800) 555-0123","brandThemeColor":"blue"}'::jsonb
+WHERE id = '11111111-1111-1111-1111-111111111111';
+
+UPDATE public.organizations SET
+  subdomain = 'sbospremier.sbos.health', plan_tier = 'Payer Suite', monthly_rate = 95000,
+  active_enrollees = 42000, renewal_date = '2026-11-01', billing_status = 'active', users_count = 210,
+  branding = '{"portalTitle":"SBOS Gold Premier","tagline":"Smarter coverage","supportEmail":"members@sbospremier.com","supportPhone":"+1 (800) 555-0177","brandThemeColor":"indigo"}'::jsonb
+WHERE id = '22222222-2222-2222-2222-222222222222';
+
+UPDATE public.organizations SET
+  subdomain = 'acme.sbos.health', plan_tier = 'Enterprise SaaS', monthly_rate = 35000,
+  active_enrollees = 142, renewal_date = '2027-01-01', billing_status = 'active', users_count = 150,
+  branding = '{"portalTitle":"Acme Benefits","tagline":"Team health, simplified","supportEmail":"hr@acme.test","supportPhone":"+1 (800) 555-0199","brandThemeColor":"teal"}'::jsonb
+WHERE id = '33333333-3333-3333-3333-333333333333';
+
 INSERT INTO public.claims (id, claim_number, patient_id, provider_id, payer_organization_id, organization_id, patient_name, provider_name, provider_npi, service_date, total_billed, approved_amount, patient_copay, status, icd10_codes, cpt_codes, ai_risk_score, ai_risk_flags, plain_english_explanation)
 VALUES ('f0000000-0000-0000-0000-000000000001', 'CLM-2026-884102', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001',
         '22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Sarah Jenkins', 'Dr. James Wilson', '1982736410', '2026-07-10', 1250.00, 1100.00, 30.00, 'paid',

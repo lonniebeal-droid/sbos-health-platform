@@ -1,10 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan, mapProvider, mapEmployerGroup, mapEmployerMember } from '../lib/db/mappers';
+import { mapOrganizationToTenantOrg, mapOrganizationToTenant, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan, mapProvider, mapEmployerGroup, mapEmployerMember } from '../lib/db/mappers';
 import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow } from '../lib/db/database.types';
+
+const fullOrg: OrganizationRow = {
+  id: 'org-2', name: 'SBOS Gold Premier Insurance', type: 'payer', tax_id: '94-8829101', npi: null,
+  subdomain: 'sbospremier.sbos.health', custom_domain: null, primary_color: 'from-blue-600 to-indigo-600',
+  accent_color: '#2563eb', plan_tier: 'Payer Suite', monthly_rate: 95000, active_enrollees: 42000,
+  renewal_date: '2026-11-01', billing_status: 'active', users_count: 210,
+  permissions: { telehealthEnabled: true, rcmEdiEnabled: true, priorAuthAiEnabled: false, behavioralHealthEnabled: true, employerPortalEnabled: true, mfaEnforced: true },
+  branding: { portalTitle: 'SBOS Gold Premier', tagline: 'Smarter coverage' },
+  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+};
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
   tax_id: '94-1829012', npi: '1882901230',
+  subdomain: null, custom_domain: null, primary_color: null, accent_color: null,
+  plan_tier: null, monthly_rate: 35000, active_enrollees: 0, renewal_date: null,
+  billing_status: 'active', users_count: 0,
+  permissions: { telehealthEnabled: true, rcmEdiEnabled: true, priorAuthAiEnabled: true, behavioralHealthEnabled: true, employerPortalEnabled: true, mfaEnforced: true },
+  branding: {},
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
 
@@ -25,6 +40,26 @@ describe('mapOrganizationToTenantOrg', () => {
     const t = mapOrganizationToTenantOrg({ ...baseOrg, type: 'clinic' });
     expect(t.type).toBe('health_system');
     expect(t.badge).toBe('Clinic Network');
+  });
+});
+
+describe('mapOrganizationToTenant (white-label view)', () => {
+  it('maps billing, permissions, branding, and translates org type', () => {
+    const t = mapOrganizationToTenant(fullOrg);
+    expect(t.tenantType).toBe('health_plan'); // payer -> health_plan
+    expect(t.subdomain).toBe('sbospremier.sbos.health');
+    expect(t.billing.planTier).toBe('Payer Suite');
+    expect(t.billing.monthlyRate).toBe(95000);
+    expect(t.permissions.priorAuthAiEnabled).toBe(false);
+    expect(t.branding.portalTitle).toBe('SBOS Gold Premier');
+    expect(t.usersCount).toBe(210);
+  });
+
+  it('supplies sensible defaults when optional fields are null', () => {
+    const t = mapOrganizationToTenant({ ...fullOrg, subdomain: null, branding: {}, plan_tier: null });
+    expect(t.subdomain).toBe('');
+    expect(t.billing.planTier).toBe('Enterprise SaaS');
+    expect(t.branding.portalTitle).toContain('Care Portal');
   });
 });
 

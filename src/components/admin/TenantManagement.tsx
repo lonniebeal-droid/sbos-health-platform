@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { TenantOrganization, TenantType } from '../../types';
 import { mockTenants } from '../../data/mockTenants';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { useAsync } from '../../lib/hooks/useAsync';
 import { 
   Building2, 
   ShieldCheck, 
@@ -41,6 +44,21 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({
   const [editForm, setEditForm] = useState<TenantOrganization>(selectedTenant);
   const [showNewModal, setShowNewModal] = useState(false);
 
+  // Load real organizations (white-label view). Replaces the mock list when live.
+  const { data: liveTenants } = useAsync<TenantOrganization[]>(
+    () => getRepositories().organizations.listAsTenants(),
+    isSupabaseConfigured,
+  );
+  useEffect(() => {
+    if (liveTenants && liveTenants.length > 0) {
+      setTenants(liveTenants);
+      const active = liveTenants.find((t) => t.id === activeTenantId) ?? liveTenants[0];
+      setSelectedTenant(active);
+      setEditForm(active);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveTenants]);
+
   // New Tenant Form State
   const [newTenantName, setNewTenantName] = useState('');
   const [newSubdomain, setNewSubdomain] = useState('');
@@ -55,13 +73,35 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({
     onSelectTenant(tenant.id);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     const updated = tenants.map((t) => (t.id === editForm.id ? editForm : t));
     setTenants(updated);
     setSelectedTenant(editForm);
     setIsEditing(false);
     if (onUpdateTenant) {
       onUpdateTenant(editForm);
+    }
+    // Persist to Supabase when live (RLS: admins may edit only their own org).
+    if (isSupabaseConfigured) {
+      try {
+        await getRepositories().organizations.update(editForm.id, {
+          name: editForm.name,
+          subdomain: editForm.subdomain,
+          custom_domain: editForm.customDomain,
+          primary_color: editForm.primaryColor,
+          accent_color: editForm.accentColor,
+          plan_tier: editForm.billing.planTier,
+          monthly_rate: editForm.billing.monthlyRate,
+          active_enrollees: editForm.billing.activeEnrollees,
+          renewal_date: editForm.billing.renewalDate || null,
+          billing_status: editForm.billing.status,
+          permissions: editForm.permissions,
+          branding: editForm.branding,
+        });
+      } catch {
+        // RLS denies editing other tenants; the optimistic UI update stands
+        // locally but won't persist. (Cross-tenant edits require platform admin.)
+      }
     }
   };
 
