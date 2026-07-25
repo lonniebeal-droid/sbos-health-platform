@@ -154,6 +154,9 @@ and pushed; CI (`build-and-test` + a `docker` smoke-test job) is green.
 - **Runtime bump:** Node 20 (EOL) → Node 22 LTS in the Dockerfile (all 3 stages)
   and CI. Image build + container smoke test verified on `v22`; `npm audit`
   reports 0 vulnerabilities.
+- **DX:** added a root `README.md` (architecture, prerequisites, quick start,
+  scripts, env, Docker, testing, doc index) — the repo had none. Accurate to the
+  code; links verified.
 
 Backend follow-ups needing credentials or a decision: authenticate `/api/ai/*`
 (needs the Supabase JWT secret), shared-store rate limiter for multi-instance,
