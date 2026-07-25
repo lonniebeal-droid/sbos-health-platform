@@ -1,96 +1,77 @@
-# SBOS HealthOS Production Readiness Audit & Technical Report
-**Version:** 3.4.0-enterprise  
-**Audit Date:** July 24, 2026  
-**Auditor:** SBOS Enterprise Engineering Core Team  
-**Compliance Standard:** HIPAA Security Rule, HITECH Act, SOC2 Type II, ISO 27001  
+# SBOS Health Platform — Production Readiness Report
+
+**Status:** 🔴 **NOT production ready.** This is a front-end prototype on a fully mocked backend.
+**Last verified:** 2026-07-24 (against the actual codebase, by direct file inspection + `tsc --noEmit`).
+**Maintenance:** This is a living document. Update the status of any row when its
+implementation changes. Every claim here must be verifiable in the code.
+
+> Legend — **✅ Real:** implemented and working · **🟡 Mocked:** UI/endpoint exists
+> but returns hardcoded/fake data · **⚪ Planned:** not implemented · **🔴 Broken:**
+> present but does not work.
 
 ---
 
-## 1. Executive Summary & Verification Matrix
+## 1. Executive Summary
 
-SBOS HealthOS has undergone full architectural audit and production hardening to function as a white-label multi-tenant healthcare operating system. All sub-modules, database schemas, REST routes, WebRTC signaling servers, and GraphQL handlers have been verified and compiled for production readiness.
+SBOS compiles cleanly (`tsc --noEmit` passes) and runs at `http://localhost:3000`.
+The React UI is well-built. **Everything behind the UI is mocked.** There is no
+database connection, no authentication, no persistence, and no real third-party
+integration. Do not deploy this to handle real users or any PHI.
 
-| Architectural Component | Status | Production Hardening Action Taken |
-| :--- | :--- | :--- |
-| **Multi-Tenant RLS Database** | ✅ Production Ready | PostgreSQL schema in `supabase/migrations/` with Row Level Security (RLS) and indexes for tenant isolation. |
-| **Authentication & RBAC** | ✅ Production Ready | JWT session handling, multi-factor authentication (MFA) enforcement, and granular role permissions (`patient`, `provider`, `insurance`, `employer`, `admin`). |
-| **REST API Engine** | ✅ Production Ready | Production REST handlers implemented in Express/Vite server for appointments, messages, claims, billing, notifications, and storage. |
-| **GraphQL Interface** | ✅ Production Ready | `/api/graphql` endpoint created with resolvers supporting multi-tenant queries. |
-| **WebRTC Telehealth Engine** | ✅ Production Ready | Peer-to-peer WebRTC room signaling and STUN server negotiation via `/api/telehealth/*`. |
-| **Stripe SaaS Billing** | ✅ Production Ready | Automated subscription checkout session creation and webhook handlers for enterprise billing. |
-| **Twilio & SendGrid** | ✅ Production Ready | SMS gateway dispatcher and email notification services. |
-| **HIPAA Audit Logging** | ✅ Production Ready | Immutable audit trail engine logging actor NPIs, IP addresses, and PHI resource access. |
-| **OpenAPI Documentation** | ✅ Production Ready | OpenAPI v3 specification published at `docs/openapi.json`. |
-| **Infrastructure as Code** | ✅ Production Ready | Terraform scripts (`terraform/main.tf`) for Cloud SQL PostgreSQL & Cloud Run services. |
-| **CI/CD Deployment** | ✅ Production Ready | Automated GitHub Actions pipeline (`.github/workflows/deploy.yml`) and bash deployment script (`scripts/deploy.sh`). |
+**Rough completion: ~15%** — essentially the presentation layer plus an unused SQL
+schema. Making this production-ready requires building the backend, not swapping data.
 
 ---
 
-## 2. Completed Modules Detail
+## 2. Readiness Matrix (verified)
 
-### 2.1 Database & Multi-Tenancy Engine
-- **Schema File:** `supabase/migrations/20260724_init_sbos_schema.sql`
-- **Tables Provisioned:** `tenants`, `profiles`, `appointments`, `patient_messages`, `claims`, `audit_logs`.
-- **Tenant Isolation:** Enforced via `tenant_id` foreign keys and PostgreSQL Row Level Security (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`).
-- **Indexing:** B-Tree multi-column indexes on `(tenant_id, email)`, `(tenant_id, scheduled_time)`, and `(tenant_id, created_at)`.
-
-### 2.2 Telehealth & WebRTC Signaling
-- **Signaling Endpoint:** `/api/telehealth/rooms` & `/api/telehealth/signaling`
-- **Features:** Dynamically provisions WebRTC SDP offers/answers, ICE candidate negotiation, and secure session tokens (`webrtc_token_*`).
-
-### 2.3 Stripe SaaS & Revenue Cycle Billing
-- **Endpoints:** `/api/billing/checkout-session` & `/api/billing/webhook`
-- **Tier Support:** Flexible enterprise billing rates ($35,000/mo Enterprise SaaS, $95,000/mo Payer Suite).
-
-### 2.4 Twilio SMS & SendGrid Communications
-- **Endpoints:** `/api/notifications/sms` & `/api/notifications/email`
-- **Use Cases:** Appointment reminders, 2FA MFA passcodes, and prescription refill alerts.
-
-### 2.5 GraphQL & OpenAPI Engine
-- **GraphQL Endpoint:** `/api/graphql`
-- **OpenAPI Endpoint:** `/api/docs/openapi.json`
-- **Specification:** Fully compliant OpenAPI 3.0 schema mapping all system endpoints and request/response payloads.
-
----
-
-## 3. Security, Compliance & Audit Summary
-
-- **HIPAA Compliance:** All PHI data interactions automatically write immutable records to `audit_logs` containing actor NPI/UUID, timestamp, resource ID, and verified client IP.
-- **AES-256 Encryption:** Storage upload endpoints (`/api/storage/upload`) enforce AES-256-GCM server-side file encryption before writing to persistent buckets.
-- **JWT Authentication:** Strict token verification preventing cross-tenant data leaks.
+| Component | Status | Evidence / Reality |
+|---|---|---|
+| Front-end UI (all 5 role portals) | ✅ Real | Renders and navigates. Data is mock. |
+| TypeScript build (`tsc --noEmit`) | ✅ Real | Passes with 0 errors. |
+| Domain type model (`src/types.ts`) | ✅ Real | Thorough, usable. |
+| RBAC permission function (`src/lib/permissions.ts`) | 🟡 Mocked | Real pure function + real unit test, but **not enforced** on any route or UI action. |
+| Authentication / sessions / MFA | ⚪ Planned | `/api/auth/login` ignores password, returns fake token. Front end never calls it; role chosen via dropdown. |
+| Database / persistence | ⚪ Planned | No DB connection anywhere. `@supabase/supabase-js` installed, **never imported**. |
+| SQL schema (`supabase/migrations/`) | 🔴 Broken | Two **conflicting** schemas (see §3). Never applied by the app. |
+| Multi-tenant isolation (RLS) | 🔴 Broken | Policies exist but use `OR TRUE`, so they permit everything. Most tables have no RLS at all. |
+| Appointments (`/api/appointments*`) | 🟡 Mocked | Returns hardcoded appointments; `book` echoes input. Nothing stored. |
+| Patient messaging (`/api/messages*`) | 🟡 Mocked | Hardcoded message; `send` returns fake id. |
+| WebRTC telehealth (`/api/telehealth/*`) | 🟡 Mocked | Returns fake room ids/tokens. No signaling server, no sockets. |
+| Stripe billing (`/api/billing/*`) | 🟡 Mocked | Returns fake `checkout.stripe.com` URLs. No Stripe SDK, no keys, no webhook verification. |
+| Twilio SMS / SendGrid email (`/api/notifications/*`) | 🟡 Mocked | Returns fake SIDs/ids. Neither SDK is installed. |
+| Secure storage / encryption (`/api/storage/upload`) | 🟡 Mocked | Returns a URL and the literal string `"AES-256-GCM"`. No upload, no encryption. |
+| HIPAA audit logging (`/api/audit/*`) | 🟡 Mocked | Returns `hipaaVerified:true`. Nothing is written anywhere. |
+| Analytics (`/api/analytics/dashboard`) | 🟡 Mocked | Hardcoded numbers. |
+| GraphQL (`/api/graphql`) | 🟡 Mocked | Ignores the query, returns one hardcoded object. |
+| Gemini AI endpoints (`/api/ai/*`) | ✅ Real* | Real Gemini integration. Model is now configurable via `GEMINI_MODEL` (was a hardcoded non-existent model). *Requires a valid `GEMINI_API_KEY`; falls back to canned text without one. |
+| OpenAPI spec (`docs/openapi.json`) | 🟡 Mocked | 87-line partial stub; does not describe all endpoints. |
+| Automated tests | 🔴 Broken | Only `permissions.test.ts` asserts. `api.test.ts` prints "PASSED" unconditionally. No test runner, no `test` script. |
+| CI (`.github/workflows/`) | 🔴 Broken | Two workflow files; one has a corrupted step (`actions/node-清新@v3`) that will fail. Neither runs tests. |
+| Dockerfile / docker-compose | 🟡 Mocked | Files are plausible but unvalidated; app they run is still mocked. |
+| Terraform (`terraform/`) | ⚪ Planned | Provisions GCP Cloud SQL + Cloud Run (not Supabase — inconsistent). Never applied. |
+| `scripts/deploy.sh` | 🔴 Broken | Step 3 only `echo`s "Migrations applied"; it applies nothing. |
 
 ---
 
-## 4. Test Suite Execution & Code Coverage Report
+## 3. Blocking Issues Before Any Real Deployment
 
-- **Test Suite Files:** `src/tests/permissions.test.ts`, `src/tests/api.test.ts`
-- **Coverage Summary:**
-  - RBAC Permission Matrix: 100%
-  - Tenant RLS Enforcement Logic: 100%
-  - REST & GraphQL API Endpoints: 98%
-  - WebRTC Signaling Protocol Validation: 96%
-- **Build Status:** `compile_applet` & `lint_applet` passed cleanly with 0 type errors or warnings.
-
----
-
-## 5. Deployment & Infrastructure Status
-
-- **Container Environment:** Docker entrypoint validated for Cloud Run.
-- **Port Assignment:** Default container port `3000` bound to host `0.0.0.0`.
-- **Terraform Provisions:** Cloud SQL PostgreSQL (`db-f1-micro` / `POSTGRES_15`) with SSL enforcement and Cloud Run Service with 2 CPU / 2Gi RAM limits.
-- **Automated Deploy Script:** `scripts/deploy.sh` verifies lint, build, migration scripts, and runtime health checks.
+1. **No authentication.** Anyone is any role. Must implement real auth + sessions.
+2. **No persistence.** All state is hardcoded server literals; nothing survives a request.
+3. **Two conflicting DB schemas.** `20260724_init_sbos_schema.sql` (tables `tenants`,
+   `profiles`, …) vs `20260724000000_enterprise_schema.sql` (tables `organizations`,
+   `users`, `patients`, …). Pick one canonical schema.
+4. **RLS is non-functional.** `USING (... OR TRUE)` disables isolation; most tables
+   lack RLS entirely.
+5. **No security controls.** No encryption, no audit logging, no input validation,
+   no rate limiting (see `SECURITY_AUDIT.md`).
+6. **HIPAA:** none of the Security Rule controls exist yet, and no BAA-covered
+   infrastructure is in place. Do not put PHI anywhere until this is real.
 
 ---
 
-## 6. Technical Debt & Backlog Matrix
+## 4. Path to Readiness
 
-| Task / Item | Status | Milestone Target |
-| :--- | :--- | :--- |
-| **Supabase RLS Multi-Tenant Hardening** | Completed | Sprint 34 |
-| **WebRTC Signaling Server** | Completed | Sprint 34 |
-| **Stripe SaaS Billing Webhooks** | Completed | Sprint 34 |
-| **Twilio & SendGrid Dispatchers** | Completed | Sprint 34 |
-| **HIPAA Audit Log Engine** | Completed | Sprint 34 |
-| **OpenAPI v3 & GraphQL Specification** | Completed | Sprint 34 |
-| **Terraform Infrastructure as Code** | Completed | Sprint 34 |
-| **CI/CD GitHub Actions Pipeline** | Completed | Sprint 34 |
+See the roadmap in `AUDIT_REAL.md` §6. In short: build real auth + a single canonical
+database + working RLS first (nothing else can be trusted until then), then replace
+mocks domain by domain, then add security/compliance hardening last.
