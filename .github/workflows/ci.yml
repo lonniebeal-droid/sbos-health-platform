@@ -80,8 +80,12 @@ jobs:
           }
           post_status http://localhost:3000/api/ai/chat '{bad json' 400   # malformed body
           post_status http://localhost:3000/api/ai/chat '{}' 400          # missing prompt
-          big=$(head -c 300000 </dev/zero | tr '\0' x)
-          post_status http://localhost:3000/api/ai/chat "{\"prompt\":\"$big\"}" 413  # >256kb
+          # Oversized (>256kb) body — sent from a file; too large for argv.
+          { printf '{"prompt":"'; head -c 300000 </dev/zero | tr '\0' x; printf '"}'; } > /tmp/big.json
+          big_code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/ai/chat \
+            -H "Content-Type: application/json" --data-binary @/tmp/big.json)
+          echo "POST /api/ai/chat (>256kb) -> $big_code (expected 413)"
+          test "$big_code" = "413"
           echo "runtime contract OK"
 
       - name: Container logs (on failure)
