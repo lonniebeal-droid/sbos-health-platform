@@ -109,3 +109,41 @@ ai_risk_*), then wire `ClaimsTracker` (patient) and `InsuranceClaimsCenter`
 the patient view will need a provider/patient-side claims policy (see TECH_DEBT
 item 23) — add that policy in the same migration. Verify with `supabase db reset`
 + signed-in queries for both a payer and a patient, then `npm test` + `npm run build`.
+
+---
+
+## Backend / Infra lane (separate session — `server.ts`, Docker, CI, terraform, scripts)
+
+Kept strictly isolated from the frontend/Supabase lane (no edits to `src/` or
+`supabase/`). Each item below was built, tested, container-verified, committed,
+and pushed; CI (`build-and-test` + a `docker` smoke-test job) is green.
+
+- **Removed dead fake REST endpoints** from `server.ts` (auth/tenants/
+  appointments/messages/telehealth/billing/notifications/storage/audit/
+  analytics/graphql) — they returned fabricated literals and were unused
+  (the client reads Supabase directly). Real surface: `/api/health`,
+  `/api/ai/*`, `/api/docs/openapi.json`; unknown `/api/*` → JSON 404.
+  `docs/openapi.json` pruned to match.
+- **Dockerfile hardened:** dedicated prod-deps stage (dev tooling out of the
+  image), image `HEALTHCHECK`, and a fix — the runner now ships `docs/`, so
+  `/api/docs/openapi.json` no longer 404s in-container.
+- **Security:** `/api/ai/chat` no longer leaks internal error text to clients
+  (now matches the other AI handlers).
+- **Tests:** `tests/server.test.ts` covers the per-IP rate limiter (limit/
+  reset/isolation/fallback); `rateLimit` exported and auto-start guarded under
+  Vitest.
+- **CI:** added a `docker` job asserting the runtime contract on every push;
+  bumped checkout/setup-node to v5.
+- **Compose:** dropped obsolete `version` key, added `start_period` + a
+  `GEMINI_MODEL` passthrough.
+- **Terraform:** removed a committed DB password default; added
+  `terraform/.gitignore` + `example.tfvars`. (The old value is still in git
+  history and **must be rotated**.)
+- **Scripts:** `scripts/deploy.sh` turned from a faked script into a real
+  release preflight (build + live container smoke test on a free port).
+- **Docs:** added [`docs/BACKEND.md`](docs/BACKEND.md) describing the real API,
+  security posture, env, run/verify steps, and known gaps.
+
+Backend follow-ups needing credentials or a decision: authenticate `/api/ai/*`
+(needs the Supabase JWT secret), shared-store rate limiter for multi-instance,
+CSP header, and moving `DATABASE_URL` to Secret Manager.
