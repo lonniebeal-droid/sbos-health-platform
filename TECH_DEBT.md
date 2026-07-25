@@ -15,7 +15,7 @@ Priority: **P0** = blocks correctness/security · **P1** = blocks real features 
 | # | Item | Detail |
 |---|---|---|
 | 1 | **`server.ts` endpoints still mocked** | Every non-AI endpoint returns hardcoded literals. The real data layer (`src/lib/repositories.ts`, `services/`) now exists client-side; the Express endpoints still need to use it or be removed in favor of direct Supabase access. |
-| 2 | **Auth not wired to the UI** | Real `authService` (Supabase Auth) is built and tested, but there is no login screen and the app still selects role via a dropdown. `/api/auth/login` (fake) still exists in `server.ts`. |
+| 2 | **Fake `/api/auth/login` still present** | Real Supabase Auth login is wired (login screen + auth context; role from profile). The fake `/api/auth/login` / `/api/auth/me` in `server.ts` are now unused and should be removed. MFA not yet configured. |
 | 5 | **Fabricated-claim risk** | Prior reports claimed controls that don't exist. Reports rewritten 2026-07-24; keep them honest going forward. |
 | 6 | **No input validation / rate limiting / security headers** | All `server.ts` endpoints trust `req.body`; no helmet/CORS/limits. |
 
@@ -24,7 +24,7 @@ Priority: **P0** = blocks correctness/security · **P1** = blocks real features 
 | # | Item | Detail |
 |---|---|---|
 | 8 | **RBAC never enforced** | `permissions.ts` is correct and unit-tested but not yet called by any route or UI guard. Also not yet enforced in RLS (tenant isolation is; per-role writes are not). |
-| 9 | **Components still import mocks directly** | 21 components import from `data/mock*`. The repository/service seam now exists (`src/lib/repositories.ts`); migrate components onto it one domain at a time. |
+| 9 | **Components still import mocks directly** | ~19 of 21 components still import `data/mock*`. Migrated so far: PatientManagement (patient directory) and PrescriptionsView. Continue one domain at a time via the repository/`useAsync` pattern. |
 | 10 | **Inconsistent org/tenant sources** | `server.ts /api/tenants`, `mockTenants.ts`, and SQL seeds still disagree. `organizationContext.tsx` now loads real orgs from Supabase; consolidate the rest. |
 | 22 | **Schema thinner than UI domain types** | No columns/tables for: patient vitals, family members, primaryCarePhysician; provider rating/bio/avatar/affiliation; patient_messages, benefits_plans, medical_records. Add these before those views can use real data. |
 | 23 | **Claims RLS is payer-only** | `claims_payer_tenant` isolates by `payer_organization_id`; provider-side visibility not yet modeled. |

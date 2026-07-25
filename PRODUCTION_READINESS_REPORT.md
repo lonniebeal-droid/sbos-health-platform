@@ -31,8 +31,8 @@ schema. Making this production-ready requires building the backend, not swapping
 | TypeScript build (`tsc --noEmit`) | ✅ Real | Passes with 0 errors. |
 | Domain type model (`src/types.ts`) | ✅ Real | Thorough, usable. |
 | RBAC permission function (`src/lib/permissions.ts`) | 🟡 Mocked | Real pure function + real unit test, but **not enforced** on any route or UI action. |
-| Authentication / sessions / MFA | 🟡 In progress | Real `authService` over Supabase Auth built + unit-tested; **no login UI yet** and the fake `/api/auth/login` still exists. Role still chosen via dropdown. |
-| Database / persistence | 🟡 In progress | Local Supabase stack running; typed client + repository/service layer wired and consumed by the org context. Most components + `server.ts` still on mocks. |
+| Authentication / sessions / MFA | 🟡 In progress | Real Supabase Auth: login screen + auth context gate the app, sessions are real JWTs, role derives from the profile, sign-out works. MFA not configured; fake `/api/auth/login` still present in `server.ts` (unused by the app now). |
+| Database / persistence | 🟡 In progress | Local Supabase stack; typed client + repository/service layer. Consumed by org context, **patient directory, and prescriptions** (live, RLS-scoped, with demo fallback). Remaining components + `server.ts` endpoints still on mocks. |
 | SQL schema (`supabase/migrations/`) | ✅ Real (local) | One canonical schema; applies cleanly via `supabase db reset`. Not yet on hosted infra. |
 | Multi-tenant isolation (RLS) | ✅ Real (local) | `OR TRUE` removed; real org-isolation policies on all tenant tables, verified: anon reads only the org directory, PHI tables deny unauthenticated access. Per-role write RBAC in RLS is future work. |
 | Appointments (`/api/appointments*`) | 🟡 Mocked | Returns hardcoded appointments; `book` echoes input. Nothing stored. |
