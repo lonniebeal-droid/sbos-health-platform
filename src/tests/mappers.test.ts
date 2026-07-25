@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -165,5 +165,34 @@ describe('mapClaim', () => {
     expect(c.patientName).toBe('Sarah Jenkins');
     expect(c.providerName).toBe('Dr. James Wilson');
     expect(c.providerNpi).toBe('1982736410');
+  });
+});
+
+describe('mapPriorAuth', () => {
+  const row: PriorAuthorizationWithNames = {
+    id: 'aa000000-1111-2222-3333-444455556666', patient_id: 'pat-1', provider_id: 'prov-1',
+    organization_id: 'org-1', requested_service: 'Cardiac MRI with Contrast',
+    icd10_code: 'I25.10', cpt_code: '75561', status: 'approved',
+    clinical_notes: 'Persistent atypical angina.', ai_recommendation: 'Approve: meets InterQual.',
+    created_at: '2026-07-21T00:00:00Z',
+    patient: { user: { full_name: 'Sarah Jenkins' } },
+    provider: { user: { full_name: 'Dr. Chloe Bennett' } },
+  };
+
+  it('maps names, codes, status, notes, and derives an auth number', () => {
+    const p = mapPriorAuth(row);
+    expect(p.patientName).toBe('Sarah Jenkins');
+    expect(p.requestingProvider).toBe('Dr. Chloe Bennett');
+    expect(p.requestedService).toBe('Cardiac MRI with Contrast');
+    expect(p.cptCode).toBe('75561');
+    expect(p.status).toBe('approved');
+    expect(p.aiRecommendation).toBe('Approve: meets InterQual.');
+    expect(p.authNumber).toBe('PA-AA000000');
+  });
+
+  it('degrades gracefully when joins are missing', () => {
+    const p = mapPriorAuth({ ...row, patient: null, provider: null });
+    expect(p.patientName).toBe('Unknown Patient');
+    expect(p.requestingProvider).toBeUndefined();
   });
 });

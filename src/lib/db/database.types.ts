@@ -144,6 +144,12 @@ export interface ClaimWithNames extends ClaimRow {
   provider: { npi: string; user: { full_name: string } | null } | null;
 }
 
+/** A prior authorization with patient + provider display names. */
+export interface PriorAuthorizationWithNames extends PriorAuthorizationRow {
+  patient: { user: { full_name: string } | null } | null;
+  provider: { user: { full_name: string } | null } | null;
+}
+
 export interface PrescriptionRow {
   id: string;
   patient_id: string | null;

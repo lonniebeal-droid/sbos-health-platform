@@ -17,7 +17,7 @@ import type {
   AppointmentRow, AppointmentInsert, AppointmentWithNames, DbAppointmentStatus,
   ClaimRow, ClaimWithNames, DbClaimStatus,
   PrescriptionRow, PrescriptionWithProvider,
-  PriorAuthorizationRow, PriorAuthorizationInsert, DbPriorAuthStatus,
+  PriorAuthorizationRow, PriorAuthorizationInsert, PriorAuthorizationWithNames, DbPriorAuthStatus,
   LabResultRow,
   AuditLogRow, AuditLogInsert,
 } from './db/database.types';
@@ -146,6 +146,15 @@ export function createRepositories(client: SupabaseClient) {
 
     priorAuths: {
       ...crud<PriorAuthorizationRow>(client, 'prior_authorizations'),
+      /** Prior authorizations with patient + provider display names. */
+      async listDetailed(): Promise<PriorAuthorizationWithNames[]> {
+        return unwrap<PriorAuthorizationWithNames[]>(
+          await client
+            .from('prior_authorizations')
+            .select('*, patient:patients(user:users(full_name)), provider:providers(user:users(full_name))')
+            .order('created_at', { ascending: false }),
+        );
+      },
       async create(payload: PriorAuthorizationInsert): Promise<PriorAuthorizationRow> {
         return unwrap<PriorAuthorizationRow>(
           await client.from('prior_authorizations').insert(payload).select().single(),

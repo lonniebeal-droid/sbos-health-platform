@@ -8,8 +8,33 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription, Appointment, Claim } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames } from './database.types';
+import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames } from './database.types';
+
+/** PriorAuthorizationWithNames -> the UI PriorAuth domain type. */
+export function mapPriorAuth(row: PriorAuthorizationWithNames): PriorAuth {
+  const providerName = row.provider?.user?.full_name ?? undefined;
+  const date = (row.created_at ?? '').slice(0, 10);
+  return {
+    id: row.id,
+    authNumber: `PA-${row.id.slice(0, 8).toUpperCase()}`,
+    patientId: row.patient_id ?? undefined,
+    patientName: row.patient?.user?.full_name ?? 'Unknown Patient',
+    requestingProvider: providerName,
+    providerName,
+    requestedService: row.requested_service,
+    serviceType: row.requested_service,
+    icd10Code: row.icd10_code,
+    icdCode: row.icd10_code,
+    cptCode: row.cpt_code,
+    status: row.status,
+    requestedDate: date,
+    submittedDate: date,
+    clinicalNotes: row.clinical_notes ?? undefined,
+    clinicalNotesSummary: row.clinical_notes ?? undefined,
+    aiRecommendation: row.ai_recommendation ?? undefined,
+  };
+}
 
 /** ClaimWithNames -> the UI Claim domain type. */
 export function mapClaim(row: ClaimWithNames): Claim {

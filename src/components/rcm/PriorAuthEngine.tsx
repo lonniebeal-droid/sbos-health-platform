@@ -1,16 +1,41 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { samplePriorAuths, samplePatient } from '../../data/mockData';
 import { PriorAuth } from '../../types';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapPriorAuth } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
 import { ShieldAlert, CheckCircle2, XCircle, Clock, Sparkles, FileText, Send, AlertTriangle, ChevronRight } from 'lucide-react';
 
 export const PriorAuthEngine: React.FC = () => {
-  const [priorAuths, setPriorAuths] = useState<PriorAuth[]>(samplePriorAuths);
-  const [selectedPa, setSelectedPa] = useState<PriorAuth | null>(samplePriorAuths[0]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [localCreated, setLocalCreated] = useState<PriorAuth[]>([]);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, PriorAuth['status']>>({});
   const [newRequestedService, setNewRequestedService] = useState('MRI Brain w/ & w/o Contrast');
   const [newCptCode, setNewCptCode] = useState('70553');
   const [newIcdCode, setNewIcdCode] = useState('G44.209 (Tension Headache)');
   const [newClinicalNotes, setNewClinicalNotes] = useState('Patient with refractory chronic migraine for >6 months failing sumatriptan trial. Rule out structural lesion.');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load real prior authorizations (RLS-scoped to the provider's org); fall back
+  // to demo data when Supabase is unconfigured or empty.
+  const { data: realPas } = useAsync<PriorAuth[]>(
+    async () => (await getRepositories().priorAuths.listDetailed()).map(mapPriorAuth),
+    isSupabaseConfigured,
+  );
+  const usingLive = isSupabaseConfigured && !!realPas && realPas.length > 0;
+  const base: PriorAuth[] = usingLive ? (realPas as PriorAuth[]) : samplePriorAuths;
+  const priorAuths: PriorAuth[] = [...localCreated, ...base].map((pa) =>
+    statusOverrides[pa.id] ? { ...pa, status: statusOverrides[pa.id] } : pa,
+  );
+  const selectedPa = priorAuths.find((p) => p.id === selectedId) ?? priorAuths[0] ?? null;
+
+  useEffect(() => {
+    if (!selectedId || !priorAuths.some((p) => p.id === selectedId)) {
+      setSelectedId(priorAuths[0]?.id ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priorAuths]);
 
   const handleCreatePriorAuth = async () => {
     setIsSubmitting(true);
@@ -39,8 +64,8 @@ export const PriorAuthEngine: React.FC = () => {
         aiRecommendation: data.reply || 'AI Analysis: Meets MCG clinical criteria based on failed 1st line pharmaceutical trial.'
       };
 
-      setPriorAuths((prev) => [newAuth, ...prev]);
-      setSelectedPa(newAuth);
+      setLocalCreated((prev) => [newAuth, ...prev]);
+      setSelectedId(newAuth.id);
     } catch {
       // Fallback
       const newAuth: PriorAuth = {
@@ -56,19 +81,26 @@ export const PriorAuthEngine: React.FC = () => {
         clinicalNotes: newClinicalNotes,
         aiRecommendation: 'AI Analysis: High approval likelihood. Clinical necessity documented.'
       };
-      setPriorAuths((prev) => [newAuth, ...prev]);
-      setSelectedPa(newAuth);
+      setLocalCreated((prev) => [newAuth, ...prev]);
+      setSelectedId(newAuth.id);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleAdjudicatePa = (id: string, newStatus: 'approved' | 'denied') => {
-    setPriorAuths((prev) =>
-      prev.map((pa) => (pa.id === id ? { ...pa, status: newStatus } : pa))
-    );
-    if (selectedPa?.id === id) {
-      setSelectedPa((prev) => prev ? { ...prev, status: newStatus } : null);
+  const handleAdjudicatePa = async (id: string, newStatus: 'approved' | 'denied') => {
+    setStatusOverrides((prev) => ({ ...prev, [id]: newStatus }));
+    // Persist when live and the row exists in the DB (skip locally-created ones).
+    if (usingLive && !localCreated.some((pa) => pa.id === id)) {
+      try {
+        await getRepositories().priorAuths.updateStatus(id, newStatus);
+      } catch {
+        setStatusOverrides((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
     }
   };
 
@@ -158,7 +190,7 @@ export const PriorAuthEngine: React.FC = () => {
             {priorAuths.map((pa) => (
               <div
                 key={pa.id}
-                onClick={() => setSelectedPa(pa)}
+                onClick={() => setSelectedId(pa.id)}
                 className={`p-4 rounded-2xl border transition-all cursor-pointer ${
                   selectedPa?.id === pa.id
                     ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/20 shadow-md'
