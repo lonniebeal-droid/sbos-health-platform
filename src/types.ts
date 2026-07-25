@@ -201,6 +201,26 @@ export interface BIRPNote {
   status: 'draft' | 'signed';
 }
 
+export interface TreatmentPlan {
+  id: string;
+  patientId: string;
+  title: string;
+  diagnosis: string;
+  goals: string[];
+  interventions: string[];
+  status: 'active' | 'completed' | 'on_hold';
+  reviewDate?: string;
+}
+
+export interface Assessment {
+  id: string;
+  patientId: string;
+  instrument: string;
+  score: number | null;
+  severity: string;
+  administeredAt: string;
+}
+
 export interface BenefitsPlan {
   planId: string;
   planName: string;

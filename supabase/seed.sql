@@ -146,6 +146,26 @@ UPDATE public.organizations SET
   branding = '{"portalTitle":"Acme Benefits","tagline":"Team health, simplified","supportEmail":"hr@acme.test","supportPhone":"+1 (800) 555-0199","brandThemeColor":"teal"}'::jsonb
 WHERE id = '33333333-3333-3333-3333-333333333333';
 
+-- Clinical documentation for Sarah (Bay Area org).
+INSERT INTO public.clinical_notes (id, patient_id, provider_id, organization_id, note_type, content, suggested_icd, suggested_cpt, status, signed_at)
+VALUES ('af000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+        'BIRP',
+        '{"behavior":"Patient presented on time, good affect; reported work stress 7/10.","intervention":"45-min CBT cognitive restructuring + diaphragmatic breathing (4-7-8).","response":"Engaged well; stress reduced 7/10 -> 3/10 post-session.","plan":"Continue biweekly CBT; daily breathing protocol; stress journal."}'::jsonb,
+        '["F41.1 (Generalized Anxiety Disorder)"]'::jsonb, '["90837 (Psychotherapy, 60 min)"]'::jsonb, 'signed', '2026-07-20T00:00:00Z')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.treatment_plans (id, patient_id, provider_id, organization_id, title, diagnosis, goals, interventions, status, review_date)
+VALUES ('ba000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+        'Anxiety & Stress Management', 'F41.1 (Generalized Anxiety Disorder)',
+        '["Reduce GAD-7 score to < 10 within 8 weeks","Establish daily stress-management routine"]'::jsonb,
+        '["Weekly CBT sessions","Daily 4-7-8 breathing","Sleep hygiene coaching"]'::jsonb, 'active', '2026-09-15')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.assessments (id, patient_id, provider_id, organization_id, instrument, score, severity, responses, administered_at)
+VALUES ('bb000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+        'GAD-7', 12, 'Moderate', '[]'::jsonb, '2026-07-20T00:00:00Z')
+ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO public.claims (id, claim_number, patient_id, provider_id, payer_organization_id, organization_id, patient_name, provider_name, provider_npi, service_date, total_billed, approved_amount, patient_copay, status, icd10_codes, cpt_codes, ai_risk_score, ai_risk_flags, plain_english_explanation)
 VALUES ('f0000000-0000-0000-0000-000000000001', 'CLM-2026-884102', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001',
         '22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Sarah Jenkins', 'Dr. James Wilson', '1982736410', '2026-07-10', 1250.00, 1100.00, 30.00, 'paid',

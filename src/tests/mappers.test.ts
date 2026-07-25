@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapOrganizationToTenant, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan, mapProvider, mapEmployerGroup, mapEmployerMember } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapOrganizationToTenant, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan, mapProvider, mapEmployerGroup, mapEmployerMember, mapClinicalNoteToBirp, mapTreatmentPlan, mapAssessment } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow, ClinicalNoteRow, TreatmentPlanRow, AssessmentRow } from '../lib/db/database.types';
 
 const fullOrg: OrganizationRow = {
   id: 'org-2', name: 'SBOS Gold Premier Insurance', type: 'payer', tax_id: '94-8829101', npi: null,
@@ -337,5 +337,55 @@ describe('mapEmployerMember', () => {
     expect(m.dependents).toBe(2);
     expect(m.premiumMonthly).toBe(620);
     expect(m.status).toBe('Enrolled');
+  });
+});
+
+describe('mapClinicalNoteToBirp', () => {
+  const row: ClinicalNoteRow = {
+    id: 'cn-1', patient_id: 'pat-1', provider_id: 'prov-1', organization_id: 'org-1',
+    note_type: 'BIRP',
+    content: { behavior: 'Alert', intervention: 'CBT', response: 'Improved', plan: 'Biweekly' },
+    suggested_icd: ['F41.1'], suggested_cpt: ['90837'], status: 'signed',
+    signed_at: '2026-07-20T00:00:00Z', created_at: '2026-07-20T00:00:00Z',
+  };
+
+  it('maps BIRP content + codes + names', () => {
+    const n = mapClinicalNoteToBirp(row, { patientName: 'Sarah Jenkins', providerName: 'Dr. Patel' });
+    expect(n.behavior).toBe('Alert');
+    expect(n.plan).toBe('Biweekly');
+    expect(n.suggestedICD).toEqual(['F41.1']);
+    expect(n.patientName).toBe('Sarah Jenkins');
+    expect(n.status).toBe('signed');
+    expect(n.date).toBe('2026-07-20');
+  });
+});
+
+describe('mapTreatmentPlan', () => {
+  it('maps plan fields', () => {
+    const row: TreatmentPlanRow = {
+      id: 'tp-1', patient_id: 'pat-1', provider_id: 'prov-1', organization_id: 'org-1',
+      title: 'Anxiety Management', diagnosis: 'F41.1', goals: ['Reduce GAD-7 to <10'],
+      interventions: ['Weekly CBT'], status: 'active', review_date: '2026-09-01',
+      created_at: '2026-07-01T00:00:00Z',
+    };
+    const t = mapTreatmentPlan(row);
+    expect(t.title).toBe('Anxiety Management');
+    expect(t.goals).toEqual(['Reduce GAD-7 to <10']);
+    expect(t.status).toBe('active');
+  });
+});
+
+describe('mapAssessment', () => {
+  it('maps assessment fields', () => {
+    const row: AssessmentRow = {
+      id: 'as-1', patient_id: 'pat-1', provider_id: 'prov-1', organization_id: 'org-1',
+      instrument: 'GAD-7', score: 12, severity: 'Moderate', responses: [],
+      administered_at: '2026-07-20T00:00:00Z',
+    };
+    const a = mapAssessment(row);
+    expect(a.instrument).toBe('GAD-7');
+    expect(a.score).toBe(12);
+    expect(a.severity).toBe('Moderate');
+    expect(a.administeredAt).toBe('2026-07-20');
   });
 });

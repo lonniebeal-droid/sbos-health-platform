@@ -23,6 +23,7 @@ import type {
   MedicalRecordRow,
   BenefitsPlanRow,
   EmployerGroupRow, EmployerMemberRow,
+  ClinicalNoteRow, ClinicalNoteInsert, TreatmentPlanRow, AssessmentRow,
   AuditLogRow, AuditLogWithActor, AuditLogInsert,
 } from './db/database.types';
 
@@ -89,6 +90,21 @@ export function createRepositories(client: SupabaseClient) {
     benefitsPlans: crud<BenefitsPlanRow>(client, 'benefits_plans', 'created_at'),
     employerGroups: crud<EmployerGroupRow>(client, 'employer_groups', 'company_name'),
     employerMembers: crud<EmployerMemberRow>(client, 'employer_members', 'full_name'),
+
+    clinicalNotes: {
+      async list(): Promise<ClinicalNoteRow[]> {
+        return unwrap<ClinicalNoteRow[]>(
+          await client.from('clinical_notes').select('*').order('created_at', { ascending: false }),
+        );
+      },
+      async create(payload: ClinicalNoteInsert): Promise<ClinicalNoteRow> {
+        return unwrap<ClinicalNoteRow>(
+          await client.from('clinical_notes').insert(payload).select().single(),
+        );
+      },
+    },
+    treatmentPlans: crud<TreatmentPlanRow>(client, 'treatment_plans'),
+    assessments: crud<AssessmentRow>(client, 'assessments', 'administered_at'),
 
     patients: {
       ...crud<PatientRow>(client, 'patients'),

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { sampleBIRPNote, samplePatient } from '../../data/mockData';
 import { BIRPNote } from '../../types';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getClinicalNotesService } from '../../lib/services/clinicalNotesService';
 import { Mic, MicOff, Sparkles, FileText, CheckCircle2, Save, RefreshCw, AlertCircle, Tag } from 'lucide-react';
 
 export const ClinicalDocumentation: React.FC = () => {
@@ -61,8 +63,21 @@ export const ClinicalDocumentation: React.FC = () => {
     }
   };
 
-  const handleSaveNote = () => {
-    setBirpNote({ ...birpNote, status: 'signed' });
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleSaveNote = async () => {
+    const signed: BIRPNote = { ...birpNote, status: 'signed' };
+    setBirpNote(signed);
+    setSaveError(null);
+    // Persist the signed note to the EHR when a real backend is configured.
+    if (isSupabaseConfigured) {
+      try {
+        await getClinicalNotesService().saveBirp(signed);
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : 'Failed to save note');
+        return;
+      }
+    }
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
   };
@@ -192,7 +207,10 @@ export const ClinicalDocumentation: React.FC = () => {
           </div>
 
           {/* Action Footer */}
-          <div className="pt-2 flex justify-end">
+          <div className="pt-2 flex justify-end items-center gap-3">
+            {saveError && (
+              <span className="text-[11px] text-rose-600 dark:text-rose-400">{saveError}</span>
+            )}
             {savedSuccess ? (
               <div className="px-4 py-2 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" /> Note Digitally Signed & Synced to EHR!

@@ -287,6 +287,48 @@ export interface BenefitsPlanRow {
   created_at: string;
 }
 
+export interface ClinicalNoteRow {
+  id: string;
+  patient_id: string | null;
+  provider_id: string | null;
+  organization_id: string | null;
+  note_type: 'BIRP' | 'SOAP' | 'PROGRESS';
+  content: Record<string, string>;
+  suggested_icd: string[];
+  suggested_cpt: string[];
+  status: 'draft' | 'signed';
+  signed_at: string | null;
+  created_at: string;
+}
+
+export type ClinicalNoteInsert = Omit<ClinicalNoteRow, 'id' | 'created_at'>;
+
+export interface TreatmentPlanRow {
+  id: string;
+  patient_id: string | null;
+  provider_id: string | null;
+  organization_id: string | null;
+  title: string;
+  diagnosis: string | null;
+  goals: string[];
+  interventions: string[];
+  status: 'active' | 'completed' | 'on_hold';
+  review_date: string | null;
+  created_at: string;
+}
+
+export interface AssessmentRow {
+  id: string;
+  patient_id: string | null;
+  provider_id: string | null;
+  organization_id: string | null;
+  instrument: string;
+  score: number | null;
+  severity: string | null;
+  responses: unknown[];
+  administered_at: string;
+}
+
 export interface AuditLogRow {
   id: string;
   organization_id: string | null;
@@ -352,6 +394,9 @@ export interface Database {
   benefits_plans: BenefitsPlanRow;
   employer_groups: EmployerGroupRow;
   employer_members: EmployerMemberRow;
+  clinical_notes: ClinicalNoteRow;
+  treatment_plans: TreatmentPlanRow;
+  assessments: AssessmentRow;
   audit_logs: AuditLogRow;
 }
 

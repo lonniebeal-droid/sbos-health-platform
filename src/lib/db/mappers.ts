@@ -8,8 +8,56 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider, EmployerGroup, EmployerMember, TenantOrganization, TenantType } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow } from './database.types';
+import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider, EmployerGroup, EmployerMember, TenantOrganization, TenantType, BIRPNote, TreatmentPlan, Assessment } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow, ClinicalNoteRow, TreatmentPlanRow, AssessmentRow } from './database.types';
+
+/** ClinicalNoteRow -> the UI BIRPNote domain type (names passed in by caller). */
+export function mapClinicalNoteToBirp(
+  row: ClinicalNoteRow,
+  names?: { patientName?: string; providerName?: string },
+): BIRPNote {
+  const c = row.content ?? {};
+  return {
+    id: row.id,
+    patientId: row.patient_id ?? '',
+    patientName: names?.patientName ?? '',
+    providerName: names?.providerName ?? '',
+    date: (row.signed_at ?? row.created_at ?? '').slice(0, 10),
+    behavior: c.behavior ?? '',
+    intervention: c.intervention ?? '',
+    response: c.response ?? '',
+    plan: c.plan ?? '',
+    suggestedICD: row.suggested_icd ?? [],
+    suggestedCPT: row.suggested_cpt ?? [],
+    status: row.status,
+  };
+}
+
+/** TreatmentPlanRow -> the UI TreatmentPlan domain type. */
+export function mapTreatmentPlan(row: TreatmentPlanRow): TreatmentPlan {
+  return {
+    id: row.id,
+    patientId: row.patient_id ?? '',
+    title: row.title,
+    diagnosis: row.diagnosis ?? '',
+    goals: row.goals ?? [],
+    interventions: row.interventions ?? [],
+    status: row.status,
+    reviewDate: row.review_date ?? undefined,
+  };
+}
+
+/** AssessmentRow -> the UI Assessment domain type. */
+export function mapAssessment(row: AssessmentRow): Assessment {
+  return {
+    id: row.id,
+    patientId: row.patient_id ?? '',
+    instrument: row.instrument,
+    score: row.score,
+    severity: row.severity ?? '',
+    administeredAt: (row.administered_at ?? '').slice(0, 10),
+  };
+}
 
 // DB org type -> UI TenantType (the UI uses a slightly different vocabulary).
 const ORG_TYPE_TO_TENANT: Record<DbOrgType, TenantType> = {
