@@ -8,8 +8,24 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames } from './database.types';
+import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow } from './database.types';
+
+/** MedicalRecordRow -> the UI MedicalRecord domain type. */
+export function mapMedicalRecord(row: MedicalRecordRow): MedicalRecord {
+  return {
+    id: row.id,
+    patientId: row.patient_id ?? '',
+    date: row.record_date,
+    type: row.type,
+    title: row.title,
+    doctor: row.doctor ?? '',
+    facility: row.facility ?? '',
+    summary: row.summary ?? '',
+    status: row.status,
+    fileUrl: row.file_url ?? undefined,
+  };
+}
 
 /** PriorAuthorizationWithNames -> the UI PriorAuth domain type. */
 export function mapPriorAuth(row: PriorAuthorizationWithNames): PriorAuth {

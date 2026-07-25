@@ -19,6 +19,7 @@ import type {
   PrescriptionRow, PrescriptionWithProvider,
   PriorAuthorizationRow, PriorAuthorizationInsert, PriorAuthorizationWithNames, DbPriorAuthStatus,
   LabResultRow,
+  MedicalRecordRow,
   AuditLogRow, AuditLogInsert,
 } from './db/database.types';
 
@@ -67,6 +68,8 @@ export function createRepositories(client: SupabaseClient) {
         );
       },
     },
+
+    medicalRecords: crud<MedicalRecordRow>(client, 'medical_records', 'record_date'),
 
     patients: {
       ...crud<PatientRow>(client, 'patients'),

@@ -77,6 +77,16 @@ VALUES
    'Recommend approval: GAD refractory to 12 weeks standard weekly therapy.')
 ON CONFLICT (id) DO NOTHING;
 
+INSERT INTO public.medical_records (id, patient_id, organization_id, record_date, type, title, doctor, facility, summary, status)
+VALUES
+  ('ab000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   '2026-07-15', 'Lab Result', 'Comprehensive Metabolic Panel & Lipid Profile', 'Dr. James Wilson, MD', 'SBOS Diagnostic Labs',
+   'Total Cholesterol: 185 mg/dL (Normal). Fasting Glucose: 92 mg/dL (Normal). Electrolytes within optimal ranges.', 'normal'),
+  ('ab000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+   '2026-06-10', 'Immunization', 'Tdap Booster & Annual Influenza Vaccine', 'Dr. James Wilson, MD', 'Primary Care Network Clinic',
+   'Administered in left deltoid. No adverse reaction observed during 15-min post-vaccine monitoring window.', 'normal')
+ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO public.claims (id, claim_number, patient_id, provider_id, payer_organization_id, organization_id, patient_name, provider_name, provider_npi, service_date, total_billed, approved_amount, patient_copay, status, icd10_codes, cpt_codes, ai_risk_score, ai_risk_flags, plain_english_explanation)
 VALUES ('f0000000-0000-0000-0000-000000000001', 'CLM-2026-884102', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001',
         '22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Sarah Jenkins', 'Dr. James Wilson', '1982736410', '2026-07-10', 1250.00, 1100.00, 30.00, 'paid',

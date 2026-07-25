@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -194,5 +194,24 @@ describe('mapPriorAuth', () => {
     const p = mapPriorAuth({ ...row, patient: null, provider: null });
     expect(p.patientName).toBe('Unknown Patient');
     expect(p.requestingProvider).toBeUndefined();
+  });
+});
+
+describe('mapMedicalRecord', () => {
+  const row: MedicalRecordRow = {
+    id: 'rec-1', patient_id: 'pat-1', organization_id: 'org-1', record_date: '2026-07-15',
+    type: 'Lab Result', title: 'CMP & Lipid Profile', doctor: 'Dr. James Wilson, MD',
+    facility: 'SBOS Diagnostic Labs', summary: 'All within range.', status: 'normal',
+    file_url: null, created_at: '2026-07-15T00:00:00Z',
+  };
+
+  it('maps record fields to the domain type', () => {
+    const r = mapMedicalRecord(row);
+    expect(r.type).toBe('Lab Result');
+    expect(r.title).toBe('CMP & Lipid Profile');
+    expect(r.doctor).toBe('Dr. James Wilson, MD');
+    expect(r.date).toBe('2026-07-15');
+    expect(r.status).toBe('normal');
+    expect(r.fileUrl).toBeUndefined();
   });
 });

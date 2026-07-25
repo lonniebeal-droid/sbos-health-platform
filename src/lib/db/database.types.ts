@@ -191,6 +191,24 @@ export interface LabResultRow {
   result_date: string;
 }
 
+export type DbMedicalRecordType = 'Lab Result' | 'Immunization' | 'Visit Summary' | 'Imaging';
+export type DbMedicalRecordStatus = 'normal' | 'abnormal' | 'pending';
+
+export interface MedicalRecordRow {
+  id: string;
+  patient_id: string | null;
+  organization_id: string | null;
+  record_date: string;
+  type: DbMedicalRecordType;
+  title: string;
+  doctor: string | null;
+  facility: string | null;
+  summary: string | null;
+  status: DbMedicalRecordStatus;
+  file_url: string | null;
+  created_at: string;
+}
+
 export interface AuditLogRow {
   id: string;
   organization_id: string | null;
@@ -220,6 +238,7 @@ export interface Database {
   prescriptions: PrescriptionRow;
   prior_authorizations: PriorAuthorizationRow;
   lab_results: LabResultRow;
+  medical_records: MedicalRecordRow;
   audit_logs: AuditLogRow;
 }
 

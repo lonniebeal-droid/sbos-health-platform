@@ -1,9 +1,22 @@
 import React, { useState } from 'react';
 import { sampleMedicalRecords, samplePatient } from '../../data/mockData';
+import { MedicalRecord } from '../../types';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapMedicalRecord } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
 import { Activity, FileText, Heart, Shield, User, Download, CheckCircle2, ChevronRight, BarChart2 } from 'lucide-react';
 
 export const MedicalRecordsView: React.FC = () => {
   const [activeFamilyMember, setActiveFamilyMember] = useState<string>('pat_001');
+
+  // Load real, RLS-scoped medical records; fall back to demo data.
+  const { data: realRecords } = useAsync<MedicalRecord[]>(
+    async () => (await getRepositories().medicalRecords.list()).map(mapMedicalRecord),
+    isSupabaseConfigured,
+  );
+  const usingLive = isSupabaseConfigured && !!realRecords && realRecords.length > 0;
+  const records: MedicalRecord[] = usingLive ? (realRecords as MedicalRecord[]) : sampleMedicalRecords;
 
   return (
     <div className="space-y-6">
@@ -81,7 +94,7 @@ export const MedicalRecordsView: React.FC = () => {
       <div className="space-y-3">
         <h3 className="font-bold text-sm text-slate-900 dark:text-white">Certified Lab Reports & Visit Summaries</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {sampleMedicalRecords.map((rec) => (
+          {records.map((rec) => (
             <div
               key={rec.id}
               className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow space-y-3"
