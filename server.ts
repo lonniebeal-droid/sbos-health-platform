@@ -85,6 +85,17 @@ function rateLimit(opts: { windowMs: number; max: number; key: string }) {
 app.use('/api', rateLimit({ windowMs: 60_000, max: 120, key: 'global' }));
 app.use('/api/ai', rateLimit({ windowMs: 60_000, max: 15, key: 'ai' }));
 
+// Structured request logging for API routes (method, path, status, duration).
+app.use('/api', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    console.log(
+      `[SBOS] ${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - start}ms`,
+    );
+  });
+  next();
+});
+
 // Initialize Google GenAI Server SDK lazily or with fallbacks
 function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -572,6 +583,12 @@ app.get('/api/docs/openapi.json', (_req, res) => {
 // VITE MIDDLEWARE & SERVER LISTEN
 // ---------------------------
 async function startServer() {
+  // Unknown API routes return a JSON 404 (registered after all /api routes,
+  // before the SPA catch-all so non-API paths still fall through to the app).
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -586,9 +603,32 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  // Centralized error handler: consistent JSON, never leak stack traces.
+  app.use(
+    (
+      err: unknown,
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction,
+    ) => {
+      console.error('[SBOS] Unhandled error:', err);
+      if (res.headersSent) return;
+      res.status(500).json({ error: 'Internal server error' });
+    },
+  );
+
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[SBOS Platform] Running on http://0.0.0.0:${PORT}`);
   });
+
+  // Graceful shutdown so container stops (SIGTERM) drain in-flight requests.
+  const shutdown = (signal: string) => {
+    console.log(`[SBOS Platform] ${signal} received — shutting down.`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 10_000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 startServer();
