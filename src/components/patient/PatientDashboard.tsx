@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { samplePatient, sampleAppointments } from '../../data/mockData';
-import { Appointment } from '../../types';
+import { Appointment, Patient } from '../../types';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
-import { mapAppointment } from '../../lib/db/mappers';
+import { mapAppointment, mapPatient } from '../../lib/db/mappers';
 import { useAsync } from '../../lib/hooks/useAsync';
 import { InsuranceCardModal } from './InsuranceCardModal';
 import { ClaimsTracker } from './ClaimsTracker';
@@ -54,6 +54,14 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
     setLocalAppts((prev) => [apt, ...prev]);
   };
 
+  // The signed-in patient's own record (RLS returns only their row).
+  const { data: patients } = useAsync<Patient[]>(
+    async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
+    isSupabaseConfigured,
+  );
+  const patient: Patient =
+    isSupabaseConfigured && patients && patients.length > 0 ? patients[0] : samplePatient;
+
   const navItems = [
     { id: 'overview', label: 'Patient Home', icon: <Activity className="w-4 h-4" /> },
     { id: 'claims', label: 'Claims Tracker', icon: <FileText className="w-4 h-4" /> },
@@ -101,10 +109,10 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
           <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-2 z-10">
               <span className="text-xs font-bold font-mono px-3 py-1 rounded-full bg-teal-400/20 text-teal-300 border border-teal-400/30">
-                MEMBER ID: {samplePatient.insuranceId}
+                MEMBER ID: {patient.insuranceId}
               </span>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Welcome back, {samplePatient.name}
+                Welcome back, {patient.name}
               </h1>
               <p className="text-xs sm:text-sm text-blue-200 max-w-xl">
                 Your SBOS Gold Premier PPO plan is active. You have 1 upcoming virtual consultation tomorrow.

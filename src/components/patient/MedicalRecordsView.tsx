@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { sampleMedicalRecords, samplePatient } from '../../data/mockData';
-import { MedicalRecord } from '../../types';
+import { MedicalRecord, Patient } from '../../types';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
-import { mapMedicalRecord } from '../../lib/db/mappers';
+import { mapMedicalRecord, mapPatient } from '../../lib/db/mappers';
 import { useAsync } from '../../lib/hooks/useAsync';
 import { Activity, FileText, Heart, Shield, User, Download, CheckCircle2, ChevronRight, BarChart2 } from 'lucide-react';
 
@@ -17,6 +17,14 @@ export const MedicalRecordsView: React.FC = () => {
   );
   const usingLive = isSupabaseConfigured && !!realRecords && realRecords.length > 0;
   const records: MedicalRecord[] = usingLive ? (realRecords as MedicalRecord[]) : sampleMedicalRecords;
+
+  // The signed-in patient's own record for the vitals card (RLS-scoped).
+  const { data: patients } = useAsync<Patient[]>(
+    async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
+    isSupabaseConfigured,
+  );
+  const patient: Patient =
+    isSupabaseConfigured && patients && patients.length > 0 ? patients[0] : samplePatient;
 
   return (
     <div className="space-y-6">
@@ -52,14 +60,14 @@ export const MedicalRecordsView: React.FC = () => {
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md space-y-4">
         <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
           <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
-          Latest Vitals Telemetry ({samplePatient.recentVitals.date})
+          Latest Vitals Telemetry ({patient.recentVitals.date})
         </h3>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
             <p className="text-[10px] font-bold text-slate-400 uppercase">Blood Pressure</p>
             <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 font-mono">
-              {samplePatient.recentVitals.bloodPressure} <span className="text-xs font-normal text-slate-500">mmHg</span>
+              {patient.recentVitals.bloodPressure} <span className="text-xs font-normal text-slate-500">mmHg</span>
             </p>
             <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">Optimal Range</span>
           </div>
@@ -67,7 +75,7 @@ export const MedicalRecordsView: React.FC = () => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
             <p className="text-[10px] font-bold text-slate-400 uppercase">Heart Rate</p>
             <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 font-mono">
-              {samplePatient.recentVitals.heartRate} <span className="text-xs font-normal text-slate-500">bpm</span>
+              {patient.recentVitals.heartRate} <span className="text-xs font-normal text-slate-500">bpm</span>
             </p>
             <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">Resting Normal</span>
           </div>
@@ -75,7 +83,7 @@ export const MedicalRecordsView: React.FC = () => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
             <p className="text-[10px] font-bold text-slate-400 uppercase">Blood Oxygen (SpO2)</p>
             <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 font-mono">
-              {samplePatient.recentVitals.spO2}%
+              {patient.recentVitals.spO2}%
             </p>
             <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 mt-1 block">Optimal Saturation</span>
           </div>
@@ -83,7 +91,7 @@ export const MedicalRecordsView: React.FC = () => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
             <p className="text-[10px] font-bold text-slate-400 uppercase">Body Weight</p>
             <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 font-mono">
-              {samplePatient.recentVitals.weightLbs} <span className="text-xs font-normal text-slate-500">lbs</span>
+              {patient.recentVitals.weightLbs} <span className="text-xs font-normal text-slate-500">lbs</span>
             </p>
             <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mt-1 block">BMI 22.4 (Normal)</span>
           </div>
