@@ -272,6 +272,29 @@ export interface AuditLog {
   complianceLevel: 'HIPAA_STANDARD' | 'CRITICAL_ACCESS' | 'SYSTEM_EVENT';
 }
 
+export interface MessageParticipant {
+  userId: string;
+  name: string;
+  role: Role;
+}
+
+export interface MessageThread {
+  id: string;
+  subject: string;
+  lastMessageAt: string;
+  participants: MessageParticipant[];
+  hasUnread: boolean;
+}
+
+export interface Message {
+  id: string;
+  threadId: string;
+  senderId: string;
+  senderName: string;
+  body: string;
+  createdAt: string;
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'jessie' | 'system';

@@ -329,6 +329,55 @@ export interface AssessmentRow {
   administered_at: string;
 }
 
+export interface MessageThreadRow {
+  id: string;
+  organization_id: string | null;
+  subject: string;
+  created_by: string | null;
+  created_at: string;
+  last_message_at: string;
+}
+
+export interface ThreadParticipantRow {
+  id: string;
+  thread_id: string;
+  user_id: string;
+  last_read_at: string | null;
+}
+
+export interface MessageRow {
+  id: string;
+  thread_id: string;
+  organization_id: string | null;
+  sender_id: string | null;
+  body: string;
+  created_at: string;
+}
+
+export interface MessageAttachmentRow {
+  id: string;
+  message_id: string;
+  file_name: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  storage_path: string | null;
+  created_at: string;
+}
+
+/** A thread with participants (+ their profile) for the inbox view. */
+export interface MessageThreadWithParticipants extends MessageThreadRow {
+  participants: Array<{
+    user_id: string;
+    last_read_at: string | null;
+    user: { full_name: string; role: DbUserRole } | null;
+  }>;
+}
+
+/** A message with the sender's display name. */
+export interface MessageWithSender extends MessageRow {
+  sender: { full_name: string } | null;
+}
+
 export interface AuditLogRow {
   id: string;
   organization_id: string | null;
@@ -397,6 +446,10 @@ export interface Database {
   clinical_notes: ClinicalNoteRow;
   treatment_plans: TreatmentPlanRow;
   assessments: AssessmentRow;
+  message_threads: MessageThreadRow;
+  thread_participants: ThreadParticipantRow;
+  messages: MessageRow;
+  message_attachments: MessageAttachmentRow;
   audit_logs: AuditLogRow;
 }
 

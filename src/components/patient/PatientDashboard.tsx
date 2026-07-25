@@ -13,6 +13,7 @@ import { TelehealthRoom } from './TelehealthRoom';
 import { PrescriptionsView } from './PrescriptionsView';
 import { MedicalRecordsView } from './MedicalRecordsView';
 import { BillPayment } from './BillPayment';
+import { MessagingCenter } from '../common/MessagingCenter';
 import { 
   CreditCard, 
   Calendar, 
@@ -35,7 +36,7 @@ interface PatientDashboardProps {
 }
 
 export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssistant }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'claims' | 'benefits' | 'providers' | 'prescriptions' | 'records' | 'billing'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'claims' | 'benefits' | 'providers' | 'prescriptions' | 'records' | 'billing' | 'messages'>('overview');
   const [showIdCardModal, setShowIdCardModal] = useState(false);
   const [isTelehealthActive, setIsTelehealthActive] = useState(false);
   // Locally-booked appointments (this session) layered on top of loaded data.
@@ -70,6 +71,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
     { id: 'prescriptions', label: 'Prescriptions', icon: <Pill className="w-4 h-4" /> },
     { id: 'records', label: 'Medical Records', icon: <Activity className="w-4 h-4" /> },
     { id: 'billing', label: 'Bill Payment', icon: <DollarSign className="w-4 h-4" /> },
+    { id: 'messages', label: 'Messages', icon: <FileText className="w-4 h-4" /> },
   ];
 
   if (isTelehealthActive) {
@@ -252,6 +254,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
       {activeTab === 'prescriptions' && <PrescriptionsView />}
       {activeTab === 'records' && <MedicalRecordsView />}
       {activeTab === 'billing' && <BillPayment />}
+      {activeTab === 'messages' && <MessagingCenter />}
 
       {/* Digital ID Card Modal */}
       <InsuranceCardModal isOpen={showIdCardModal} onClose={() => setShowIdCardModal(false)} />

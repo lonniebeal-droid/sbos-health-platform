@@ -8,8 +8,38 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider, EmployerGroup, EmployerMember, TenantOrganization, TenantType, BIRPNote, TreatmentPlan, Assessment } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow, ClinicalNoteRow, TreatmentPlanRow, AssessmentRow } from './database.types';
+import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider, EmployerGroup, EmployerMember, TenantOrganization, TenantType, BIRPNote, TreatmentPlan, Assessment, MessageThread, Message } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow, ClinicalNoteRow, TreatmentPlanRow, AssessmentRow, MessageThreadWithParticipants, MessageWithSender } from './database.types';
+
+/** MessageThreadWithParticipants -> UI MessageThread (unread computed for the viewer). */
+export function mapMessageThread(row: MessageThreadWithParticipants, currentUserId: string): MessageThread {
+  const mine = row.participants?.find((p) => p.user_id === currentUserId);
+  const lastRead = mine?.last_read_at ? new Date(mine.last_read_at).getTime() : 0;
+  const hasUnread = new Date(row.last_message_at).getTime() > lastRead;
+  return {
+    id: row.id,
+    subject: row.subject,
+    lastMessageAt: row.last_message_at,
+    participants: (row.participants ?? []).map((p) => ({
+      userId: p.user_id,
+      name: p.user?.full_name ?? 'Unknown',
+      role: (p.user?.role as Role) ?? 'patient',
+    })),
+    hasUnread,
+  };
+}
+
+/** MessageWithSender -> UI Message. */
+export function mapMessage(row: MessageWithSender): Message {
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    senderId: row.sender_id ?? '',
+    senderName: row.sender?.full_name ?? 'Unknown',
+    body: row.body,
+    createdAt: row.created_at,
+  };
+}
 
 /** ClinicalNoteRow -> the UI BIRPNote domain type (names passed in by caller). */
 export function mapClinicalNoteToBirp(

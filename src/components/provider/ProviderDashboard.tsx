@@ -5,10 +5,11 @@ import { AIClinicalAssistant } from './AIClinicalAssistant';
 import { ElectronicPrescribing } from '../rcm/ElectronicPrescribing';
 import { PriorAuthEngine } from '../rcm/PriorAuthEngine';
 import { LabIntegrationHub } from '../rcm/LabIntegrationHub';
-import { Users, FileText, Stethoscope, Pill, ShieldAlert, TestTube } from 'lucide-react';
+import { MessagingCenter } from '../common/MessagingCenter';
+import { Users, FileText, Stethoscope, Pill, ShieldAlert, TestTube, MessageSquare } from 'lucide-react';
 
 export const ProviderDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'patients' | 'clinical' | 'assistant' | 'erx' | 'prior_auth' | 'labs'>('patients');
+  const [activeTab, setActiveTab] = useState<'patients' | 'clinical' | 'assistant' | 'erx' | 'prior_auth' | 'labs' | 'messages'>('patients');
 
   const navItems = [
     { id: 'patients', label: 'EHR Patient Directory', icon: <Users className="w-4 h-4" /> },
@@ -17,6 +18,7 @@ export const ProviderDashboard: React.FC = () => {
     { id: 'prior_auth', label: 'Prior Auth Engine', icon: <ShieldAlert className="w-4 h-4" /> },
     { id: 'labs', label: 'HL7 Lab Integration', icon: <TestTube className="w-4 h-4" /> },
     { id: 'assistant', label: 'Clinical AI Decision Support', icon: <Stethoscope className="w-4 h-4" /> },
+    { id: 'messages', label: 'Secure Messages', icon: <MessageSquare className="w-4 h-4" /> },
   ];
 
   return (
@@ -47,6 +49,7 @@ export const ProviderDashboard: React.FC = () => {
       {activeTab === 'prior_auth' && <PriorAuthEngine />}
       {activeTab === 'labs' && <LabIntegrationHub />}
       {activeTab === 'assistant' && <AIClinicalAssistant />}
+      {activeTab === 'messages' && <MessagingCenter />}
 
     </div>
   );

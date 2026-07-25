@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapOrganizationToTenant, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan, mapProvider, mapEmployerGroup, mapEmployerMember, mapClinicalNoteToBirp, mapTreatmentPlan, mapAssessment } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow, ClinicalNoteRow, TreatmentPlanRow, AssessmentRow } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapOrganizationToTenant, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan, mapProvider, mapEmployerGroup, mapEmployerMember, mapClinicalNoteToBirp, mapTreatmentPlan, mapAssessment, mapMessageThread, mapMessage } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, EmployerGroupRow, EmployerMemberRow, ClinicalNoteRow, TreatmentPlanRow, AssessmentRow, MessageThreadWithParticipants, MessageWithSender } from '../lib/db/database.types';
 
 const fullOrg: OrganizationRow = {
   id: 'org-2', name: 'SBOS Gold Premier Insurance', type: 'payer', tax_id: '94-8829101', npi: null,
@@ -387,5 +387,44 @@ describe('mapAssessment', () => {
     expect(a.score).toBe(12);
     expect(a.severity).toBe('Moderate');
     expect(a.administeredAt).toBe('2026-07-20');
+  });
+});
+
+describe('mapMessageThread', () => {
+  const row: MessageThreadWithParticipants = {
+    id: 'th-1', organization_id: 'org-1', subject: 'Lab results', created_by: 'u-prov',
+    created_at: '2026-07-24T18:00:00Z', last_message_at: '2026-07-24T18:20:00Z',
+    participants: [
+      { user_id: 'u-prov', last_read_at: '2026-07-24T18:20:00Z', user: { full_name: 'Dr. Wilson', role: 'provider' } },
+      { user_id: 'u-pat', last_read_at: null, user: { full_name: 'Sarah Jenkins', role: 'patient' } },
+    ],
+  };
+
+  it('computes unread from the viewer last_read_at', () => {
+    // Patient never read -> unread.
+    expect(mapMessageThread(row, 'u-pat').hasUnread).toBe(true);
+    // Provider read at/after last message -> not unread.
+    expect(mapMessageThread(row, 'u-prov').hasUnread).toBe(false);
+  });
+
+  it('maps participants with names and roles', () => {
+    const t = mapMessageThread(row, 'u-pat');
+    expect(t.subject).toBe('Lab results');
+    expect(t.participants).toHaveLength(2);
+    expect(t.participants.find((p) => p.userId === 'u-prov')?.role).toBe('provider');
+  });
+});
+
+describe('mapMessage', () => {
+  it('maps a message with sender name', () => {
+    const row: MessageWithSender = {
+      id: 'm-1', thread_id: 'th-1', organization_id: 'org-1', sender_id: 'u-prov',
+      body: 'Results look good.', created_at: '2026-07-24T18:00:00Z',
+      sender: { full_name: 'Dr. Wilson' },
+    };
+    const m = mapMessage(row);
+    expect(m.senderName).toBe('Dr. Wilson');
+    expect(m.body).toBe('Results look good.');
+    expect(m.threadId).toBe('th-1');
   });
 });

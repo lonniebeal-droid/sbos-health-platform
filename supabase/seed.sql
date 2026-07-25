@@ -166,6 +166,24 @@ VALUES ('bb000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-0000000
         'GAD-7', 12, 'Moderate', '[]'::jsonb, '2026-07-20T00:00:00Z')
 ON CONFLICT (id) DO NOTHING;
 
+-- Secure messaging: a thread between Dr. Wilson (provider) and Sarah (patient).
+INSERT INTO public.message_threads (id, organization_id, subject, created_by, last_message_at)
+VALUES ('bc000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
+        'Lab results & medication review', 'a0000000-0000-0000-0000-000000000001', '2026-07-24T18:12:00Z')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.thread_participants (id, thread_id, user_id, last_read_at)
+VALUES
+  ('bd000000-0000-0000-0000-000000000001', 'bc000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '2026-07-24T18:12:00Z'),
+  ('bd000000-0000-0000-0000-000000000002', 'bc000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', NULL)
+ON CONFLICT (thread_id, user_id) DO NOTHING;
+
+INSERT INTO public.messages (id, thread_id, organization_id, sender_id, body, created_at)
+VALUES
+  ('be000000-0000-0000-0000-000000000001', 'bc000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-000000000001', 'Your lipid panel and HbA1c came back in the normal range. Continue Lisinopril as prescribed.', '2026-07-24T18:12:00Z'),
+  ('be000000-0000-0000-0000-000000000002', 'bc000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-000000000002', 'Thank you, Dr. Wilson! Should I keep the same dosage?', '2026-07-24T18:20:00Z')
+ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO public.claims (id, claim_number, patient_id, provider_id, payer_organization_id, organization_id, patient_name, provider_name, provider_npi, service_date, total_billed, approved_amount, patient_copay, status, icd10_codes, cpt_codes, ai_risk_score, ai_risk_flags, plain_english_explanation)
 VALUES ('f0000000-0000-0000-0000-000000000001', 'CLM-2026-884102', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001',
         '22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'Sarah Jenkins', 'Dr. James Wilson', '1982736410', '2026-07-10', 1250.00, 1100.00, 30.00, 'paid',
