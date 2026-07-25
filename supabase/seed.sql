@@ -44,10 +44,13 @@ VALUES ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-0000000
         '1982736410', 'Internal Medicine & Primary Care', 'CA-MD-88213', true, 175.00)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.patients (id, user_id, organization_id, dob, gender, address, insurance_member_id, policy_group_number, blood_type, allergies, chronic_conditions)
+INSERT INTO public.patients (id, user_id, organization_id, dob, gender, address, insurance_member_id, policy_group_number, blood_type, allergies, chronic_conditions, recent_vitals, family_members, primary_care_physician)
 VALUES ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
         '1988-04-12', 'Female', '742 Evergreen Terrace, San Francisco, CA 94107', 'SBOS-98421092', 'SBOS-GOLD-PPO-2026', 'A+',
-        '["Penicillin","Peanuts","Latex"]'::jsonb, '["Mild Asthma","Essential Hypertension"]'::jsonb)
+        '["Penicillin","Peanuts","Latex"]'::jsonb, '["Mild Asthma","Essential Hypertension"]'::jsonb,
+        '{"bloodPressure":"118/76","heartRate":72,"spO2":99,"weightLbs":142,"date":"2026-07-20"}'::jsonb,
+        '[{"id":"fm_001","name":"David Jenkins","relation":"Spouse","dob":"1986-09-18"},{"id":"fm_002","name":"Leo Jenkins","relation":"Child","dob":"2018-02-04"}]'::jsonb,
+        'Dr. James Wilson, MD')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.appointments (id, patient_id, provider_id, organization_id, appointment_type, status, scheduled_at, telehealth_room_url, chief_complaint)

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -57,5 +57,34 @@ describe('mapAuditLog', () => {
     const log = mapAuditLog({ ...baseLog, actor_id: null });
     expect(log.complianceLevel).toBe('SYSTEM_EVENT');
     expect(log.userName).toBe('System');
+  });
+});
+
+const basePatientRow: PatientWithUser = {
+  id: 'pat-1', user_id: 'u-1', organization_id: 'org-1',
+  dob: '1988-04-12', gender: 'Female', address: '742 Evergreen Terrace',
+  insurance_member_id: 'SBOS-98421092', policy_group_number: 'GOLD-PPO',
+  blood_type: 'A+', allergies: ['Penicillin'], chronic_conditions: ['Asthma'],
+  recent_vitals: { bloodPressure: '118/76', heartRate: 72, spO2: 99, weightLbs: 142, date: '2026-07-20' },
+  family_members: [{ id: 'fm1', name: 'David', relation: 'Spouse', dob: '1986-09-18' }],
+  primary_care_physician: 'Dr. Wilson', created_at: '2026-01-01T00:00:00Z',
+  user: { full_name: 'Sarah Jenkins', email: 'sarah@x.com', phone: '(555) 382-9102' },
+};
+
+describe('mapPatient', () => {
+  it('pulls name/email/phone from the joined user and keeps clinical fields', () => {
+    const p = mapPatient(basePatientRow);
+    expect(p.name).toBe('Sarah Jenkins');
+    expect(p.email).toBe('sarah@x.com');
+    expect(p.phone).toBe('(555) 382-9102');
+    expect(p.recentVitals.bloodPressure).toBe('118/76');
+    expect(p.familyMembers).toHaveLength(1);
+    expect(p.primaryCarePhysician).toBe('Dr. Wilson');
+  });
+
+  it('degrades gracefully when the user join and vitals are missing', () => {
+    const p = mapPatient({ ...basePatientRow, user: null, recent_vitals: null });
+    expect(p.name).toBe('Unknown Patient');
+    expect(p.recentVitals.heartRate).toBe(0);
   });
 });

@@ -52,7 +52,30 @@ export interface PatientRow {
   blood_type: string | null;
   allergies: string[];
   chronic_conditions: string[];
+  recent_vitals: PatientVitals | null;
+  family_members: PatientFamilyMember[];
+  primary_care_physician: string | null;
   created_at: string;
+}
+
+export interface PatientVitals {
+  bloodPressure: string;
+  heartRate: number;
+  spO2: number;
+  weightLbs: number;
+  date: string;
+}
+
+export interface PatientFamilyMember {
+  id: string;
+  name: string;
+  relation: string;
+  dob: string;
+}
+
+/** A patient row with its linked user profile (name/email/phone). */
+export interface PatientWithUser extends PatientRow {
+  user: { full_name: string; email: string; phone: string | null } | null;
 }
 
 export interface ProviderRow {

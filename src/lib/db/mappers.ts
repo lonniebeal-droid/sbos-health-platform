@@ -8,8 +8,31 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType } from './database.types';
+import type { AuditLog, Role, Patient } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser } from './database.types';
+
+const EMPTY_VITALS = { bloodPressure: '—', heartRate: 0, spO2: 0, weightLbs: 0, date: '—' };
+
+/** PatientWithUser (row + joined profile) -> the EHR Patient domain type. */
+export function mapPatient(row: PatientWithUser): Patient {
+  return {
+    id: row.id,
+    name: row.user?.full_name ?? 'Unknown Patient',
+    dob: row.dob,
+    gender: row.gender ?? '',
+    phone: row.user?.phone ?? '',
+    email: row.user?.email ?? '',
+    address: row.address ?? '',
+    insuranceId: row.insurance_member_id,
+    policyGroup: row.policy_group_number,
+    primaryCarePhysician: row.primary_care_physician ?? '',
+    bloodType: row.blood_type ?? '',
+    allergies: row.allergies ?? [],
+    chronicConditions: row.chronic_conditions ?? [],
+    recentVitals: row.recent_vitals ?? EMPTY_VITALS,
+    familyMembers: row.family_members ?? [],
+  };
+}
 
 const ORG_TYPE_BADGE: Record<DbOrgType, string> = {
   health_system: 'Health System',

@@ -1,31 +1,57 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { samplePatient } from '../../data/mockData';
 import { Patient } from '../../types';
-import { Search, UserCheck, Heart, AlertCircle, Phone, Mail, MapPin, Calendar, FileText, ChevronRight, Activity } from 'lucide-react';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapPatient } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
+import { Search, UserCheck, Heart, AlertCircle, Phone, Mail, MapPin, Calendar, FileText, ChevronRight, Activity, Database, FlaskConical } from 'lucide-react';
+
+const MOCK_PATIENTS: Patient[] = [
+  samplePatient,
+  {
+    id: 'pat_002',
+    name: 'Marcus Vance',
+    dob: '1982-11-04',
+    gender: 'Male',
+    phone: '(555) 948-2019',
+    email: 'marcus.vance@example.com',
+    address: '101 California St, San Francisco, CA',
+    insuranceId: 'SBOS-77182901',
+    policyGroup: 'SBOS-GOLD-HMO-2026',
+    primaryCarePhysician: 'Dr. James Wilson, MD',
+    bloodType: 'O+',
+    allergies: ['Sulfa drugs'],
+    chronicConditions: ['Type 2 Diabetes', 'Hyperlipidemia'],
+    recentVitals: { bloodPressure: '132/84', heartRate: 78, spO2: 98, weightLbs: 188, date: '2026-07-22' }
+  }
+];
 
 export const PatientManagement: React.FC = () => {
   const [search, setSearch] = useState('');
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(samplePatient);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
-  const patientsList = [
-    samplePatient,
-    {
-      id: 'pat_002',
-      name: 'Marcus Vance',
-      dob: '1982-11-04',
-      gender: 'Male',
-      phone: '(555) 948-2019',
-      email: 'marcus.vance@example.com',
-      address: '101 California St, San Francisco, CA',
-      insuranceId: 'SBOS-77182901',
-      policyGroup: 'SBOS-GOLD-HMO-2026',
-      primaryCarePhysician: 'Dr. James Wilson, MD',
-      bloodType: 'O+',
-      allergies: ['Sulfa drugs'],
-      chronicConditions: ['Type 2 Diabetes', 'Hyperlipidemia'],
-      recentVitals: { bloodPressure: '132/84', heartRate: 78, spO2: 98, weightLbs: 188, date: '2026-07-22' }
+  // Load the real patient directory (RLS scopes it to the provider's org).
+  // Falls back to demo data when Supabase is unconfigured or returns nothing.
+  const { data: realPatients, loading, error } = useAsync<Patient[]>(
+    async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
+    isSupabaseConfigured,
+  );
+
+  const usingLive = isSupabaseConfigured && !!realPatients && realPatients.length > 0;
+  const patientsList: Patient[] = usingLive ? (realPatients as Patient[]) : MOCK_PATIENTS;
+
+  // Keep a valid selection as the list resolves.
+  useEffect(() => {
+    if (!selectedPatient || !patientsList.some((p) => p.id === selectedPatient.id)) {
+      setSelectedPatient(patientsList[0] ?? null);
     }
-  ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientsList]);
+
+  const filteredPatients = patientsList.filter((p) =>
+    (p.name + p.insuranceId).toLowerCase().includes(search.toLowerCase()),
+  );
 
   return (
     <div className="space-y-6">
@@ -33,12 +59,27 @@ export const PatientManagement: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <UserCheck className="w-5 h-5 text-teal-400" />
             <h2 className="font-bold text-lg">EHR Patient Directory & Clinical History</h2>
+            <span
+              title={usingLive ? 'Loaded from Supabase (RLS-scoped to your org)' : 'Demo data — connect Supabase to load live records'}
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                usingLive
+                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                  : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
+              }`}
+            >
+              {usingLive ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {usingLive ? 'Live data' : 'Demo data'}
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
-            Search patient records, examine allergy alerts, chronic disease conditions, and vitals history.
+            {loading
+              ? 'Loading patient records…'
+              : error
+                ? `Could not load live records (${error}); showing demo data.`
+                : 'Search patient records, examine allergy alerts, chronic disease conditions, and vitals history.'}
           </p>
         </div>
 
@@ -58,7 +99,7 @@ export const PatientManagement: React.FC = () => {
         
         {/* Patient Roster */}
         <div className="lg:col-span-5 space-y-3">
-          {patientsList.map((patient) => {
+          {filteredPatients.map((patient) => {
             const isSelected = selectedPatient?.id === patient.id;
             return (
               <div
