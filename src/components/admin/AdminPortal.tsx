@@ -118,7 +118,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               ? 'Loading audit ledger...'
               : error
                 ? `Could not load live audit logs (${error}); showing demo data.`
-                : 'Real-time HIPAA audit logging, role-based access controls (RBAC), and security telemetry.'}
+                : 'Audit-log visibility, role-based access controls (RBAC), and security telemetry for release review.'}
           </p>
         </div>
 

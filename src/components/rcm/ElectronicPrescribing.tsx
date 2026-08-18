@@ -49,7 +49,7 @@ export const ElectronicPrescribing: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <Pill className="w-5 h-5 text-teal-400" />
-            <h2 className="font-bold text-lg">Surescripts Electronic Prescribing (e-Rx) Hub</h2>
+            <h2 className="font-bold text-lg">Demo Electronic Prescribing (e-Rx) Hub</h2>
             <span
               title="Demo workflow — no Surescripts connection is configured in this app yet"
               className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-100 border border-amber-400/30"
