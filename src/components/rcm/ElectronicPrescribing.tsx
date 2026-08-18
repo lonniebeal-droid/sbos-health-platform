@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { samplePrescriptions, samplePatient } from '../../data/mockData';
 import { Prescription } from '../../types';
-import { Pill, CheckCircle2, AlertTriangle, Send, ShieldCheck, MapPin, Search } from 'lucide-react';
+import { Pill, CheckCircle2, AlertTriangle, Send, ShieldCheck, MapPin, FlaskConical } from 'lucide-react';
 
 export const ElectronicPrescribing: React.FC = () => {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>(samplePrescriptions);
@@ -47,12 +47,19 @@ export const ElectronicPrescribing: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Pill className="w-5 h-5 text-teal-400" />
             <h2 className="font-bold text-lg">Surescripts Electronic Prescribing (e-Rx) Hub</h2>
+            <span
+              title="Demo workflow — no Surescripts connection is configured in this app yet"
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-100 border border-amber-400/30"
+            >
+              <FlaskConical className="w-3 h-3" />
+              Demo e-Rx
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
-            Direct NCPDP SCRIPT 2017071 electronic prescribing, automated drug-drug interaction screening, and pharmacy routing.
+            Demo prescribing workflow with local allergy checks. A real e-prescribing network connection is still required before live prescription transmission.
           </p>
         </div>
       </div>
@@ -119,7 +126,7 @@ export const ElectronicPrescribing: React.FC = () => {
 
             {isSent ? (
               <div className="p-3 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-xs font-bold text-center flex items-center justify-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" /> e-Rx Script Digitally Transmitted via Surescripts!
+                <CheckCircle2 className="w-4 h-4" /> Demo prescription queued. Live Surescripts transmission is not configured yet.
               </div>
             ) : (
               <button
@@ -149,7 +156,7 @@ export const ElectronicPrescribing: React.FC = () => {
                     <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">{rx.dosage}</p>
                   </div>
                   <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                    Surescripts Synced
+                    Demo Rx
                   </span>
                 </div>
 
