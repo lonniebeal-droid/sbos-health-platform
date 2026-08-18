@@ -68,6 +68,34 @@ describe('repositories', () => {
     await repos.prescriptions.requestRefill('rx1');
     expect(seenOps).toContainEqual(['update', { status: 'refill_requested' }]);
   });
+
+  it('priorAuths.create inserts a new prior authorization row', async () => {
+    let seenTable = '';
+    let seenOps: unknown[][] = [];
+    const payload = {
+      patient_id: 'patient-1',
+      provider_id: 'provider-1',
+      organization_id: 'org-1',
+      requested_service: 'MRI Brain',
+      icd10_code: 'G44.209',
+      cpt_code: '70553',
+      status: 'pending' as const,
+      clinical_notes: 'Medical necessity summary',
+      ai_recommendation: 'Review recommended',
+    };
+    const repos = createRepositories(fakeClient((table, ops) => {
+      seenTable = table; seenOps = ops;
+      return { data: { id: 'pa1', created_at: '2026-08-18T00:00:00Z', ...payload }, error: null };
+    }));
+
+    const row = await repos.priorAuths.create(payload);
+
+    expect(seenTable).toBe('prior_authorizations');
+    expect(seenOps).toContainEqual(['insert', payload]);
+    expect(seenOps).toContainEqual(['select']);
+    expect(seenOps).toContainEqual(['single']);
+    expect(row.id).toBe('pa1');
+  });
 });
 
 describe('organizationService', () => {

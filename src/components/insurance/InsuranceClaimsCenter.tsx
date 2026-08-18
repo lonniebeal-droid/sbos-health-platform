@@ -96,14 +96,16 @@ export const InsuranceClaimsCenter: React.FC = () => {
               ? 'Loading claims queue...'
               : error
                 ? `Could not load live claims (${error}); showing demo data.`
-                : 'Real-time EDI 837 claims ingestion, automated rule adjudication, and AI anomaly detection.'}
+                : usingLive
+                  ? 'Review Supabase claims and persist payer status decisions. EDI clearinghouse ingestion is not configured yet.'
+                  : 'Review demo claims and payer adjudication workflow. EDI clearinghouse ingestion is not configured yet.'}
           </p>
         </div>
 
         <div className="flex gap-3 text-xs">
           <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/20">
-            <span className="text-indigo-200 block text-[10px]">Claims Auto-Adjudicated</span>
-            <span className="font-mono font-bold text-teal-300">98.4% Rate</span>
+            <span className="text-indigo-200 block text-[10px]">Adjudication Mode</span>
+            <span className="font-mono font-bold text-teal-300">{usingLive ? 'Live status updates' : 'Demo workflow'}</span>
           </div>
         </div>
       </div>
@@ -181,7 +183,7 @@ export const InsuranceClaimsCenter: React.FC = () => {
                     disabled={isAnalyzingFwa}
                     className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition-colors"
                   >
-                    {isAnalyzingFwa ? 'Analyzing EDI...' : 'Re-Run AI Fraud Inspection'}
+                    {isAnalyzingFwa ? 'Analyzing claim...' : 'Run AI Fraud Review'}
                   </button>
                 </div>
 
@@ -210,7 +212,7 @@ export const InsuranceClaimsCenter: React.FC = () => {
                   className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  {selectedClaim.status === 'paid' ? 'Paid & Adjudicated' : 'Approve & Pay Claim'}
+                  {selectedClaim.status === 'paid' ? 'Paid & Adjudicated' : usingLive ? 'Approve & Mark Paid' : 'Demo Approve & Pay'}
                 </button>
 
                 <button
@@ -219,7 +221,7 @@ export const InsuranceClaimsCenter: React.FC = () => {
                   className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-1.5"
                 >
                   <XCircle className="w-4 h-4" />
-                  {selectedClaim.status === 'denied' ? 'Claim Denied' : 'Deny Claim'}
+                  {selectedClaim.status === 'denied' ? 'Claim Denied' : usingLive ? 'Deny Claim' : 'Demo Deny Claim'}
                 </button>
               </div>
 
