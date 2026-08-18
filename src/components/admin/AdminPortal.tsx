@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
-import { Shield, ShieldCheck, Database, Key, Activity, Server, FileText, CheckCircle2, Lock, Users, Terminal, Building2 } from 'lucide-react';
+import { Shield, Database, Server, FileText, CheckCircle2, Lock, Building2, FlaskConical } from 'lucide-react';
 import { TenantManagement } from './TenantManagement';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories, mapAuditLog } from '../../lib/repositories';
+import { useAsync } from '../../lib/hooks/useAsync';
+import type { AuditLog } from '../../types';
 
 interface AdminPortalProps {
   activeTenantId?: string;
@@ -13,12 +17,59 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'tenants' | 'audit' | 'system'>('tenants');
 
-  const auditLogs = [
-    { id: 'log_01', timestamp: '2026-07-24 19:04:12', actor: 'Dr. James Wilson (NPI 1882901230)', action: 'EHR Record Access', detail: 'Viewed Patient #pat_001 (Sarah Jenkins) vitals & allergies', ip: '192.168.1.45', hipaaVerified: true },
-    { id: 'log_02', timestamp: '2026-07-24 18:52:01', actor: 'System Auto-Adjudicator', action: 'EDI 837 Adjudication', detail: 'Claim #CLM-99201 approved for $1,100.00', ip: 'internal-pod-02', hipaaVerified: true },
-    { id: 'log_03', timestamp: '2026-07-24 17:10:44', actor: 'Sarah Jenkins (Member)', action: 'Telehealth Session Initiated', detail: 'Started 256-bit encrypted WebRTC video stream', ip: '73.189.201.12', hipaaVerified: true },
-    { id: 'log_04', timestamp: '2026-07-24 16:30:00', actor: 'Jessie AI Engine', action: 'BIRP Clinical Note Generation', detail: 'Generated CPT 90837 and ICD F41.1 suggestions', ip: 'ai-engine-cloud', hipaaVerified: true }
+  const fallbackAuditLogs: AuditLog[] = [
+    {
+      id: 'log_01',
+      timestamp: '2026-07-24 19:04:12',
+      userId: 'demo-provider',
+      userName: 'Dr. James Wilson (NPI 1882901230)',
+      role: 'provider',
+      action: 'EHR_RECORD_ACCESS',
+      resource: 'Patient: pat_001',
+      ipAddress: '192.168.1.45',
+      complianceLevel: 'HIPAA_STANDARD',
+    },
+    {
+      id: 'log_02',
+      timestamp: '2026-07-24 18:52:01',
+      userId: 'system',
+      userName: 'System Auto-Adjudicator',
+      role: 'admin',
+      action: 'EDI_837_ADJUDICATION',
+      resource: 'Claim: CLM-99201',
+      ipAddress: 'internal-pod-02',
+      complianceLevel: 'SYSTEM_EVENT',
+    },
+    {
+      id: 'log_03',
+      timestamp: '2026-07-24 17:10:44',
+      userId: 'demo-patient',
+      userName: 'Sarah Jenkins (Member)',
+      role: 'patient',
+      action: 'TELEHEALTH_SESSION_STARTED',
+      resource: 'Appointment: encrypted WebRTC video stream',
+      ipAddress: '73.189.201.12',
+      complianceLevel: 'CRITICAL_ACCESS',
+    },
+    {
+      id: 'log_04',
+      timestamp: '2026-07-24 16:30:00',
+      userId: 'system',
+      userName: 'Jessie AI Engine',
+      role: 'admin',
+      action: 'BIRP_NOTE_GENERATION',
+      resource: 'Clinical note coding suggestion CPT 90837 / ICD F41.1',
+      ipAddress: 'ai-engine-cloud',
+      complianceLevel: 'SYSTEM_EVENT',
+    },
   ];
+
+  const { data: realAuditLogs, loading, error } = useAsync<AuditLog[]>(
+    async () => (await getRepositories().auditLogs.list()).map((row) => mapAuditLog(row)),
+    isSupabaseConfigured,
+  );
+  const usingLiveAuditLogs = isSupabaseConfigured && !!realAuditLogs && realAuditLogs.length > 0;
+  const auditLogs = usingLiveAuditLogs ? realAuditLogs : fallbackAuditLogs;
 
   return (
     <div className="space-y-6">
@@ -26,13 +77,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white shadow-xl border border-slate-800">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Shield className="w-5 h-5 text-teal-400" />
             <span className="text-xs font-mono font-bold text-teal-300 uppercase">SBOS System Security & Governance</span>
+            <span
+              title={usingLiveAuditLogs ? 'Loaded from Supabase audit_logs' : 'Demo audit-log fallback'}
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                usingLiveAuditLogs
+                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                  : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
+              }`}
+            >
+              {usingLiveAuditLogs ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {usingLiveAuditLogs ? 'Live audit data' : 'Demo audit data'}
+            </span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Enterprise Compliance & Audit Console</h1>
           <p className="text-xs text-slate-300">
-            Real-time HIPAA audit logging, role-based access controls (RBAC), and 256-bit AES encryption verification.
+            {loading
+              ? 'Loading audit ledger...'
+              : error
+                ? `Could not load live audit logs (${error}); showing demo data.`
+                : 'Real-time HIPAA audit logging, role-based access controls (RBAC), and security telemetry.'}
           </p>
         </div>
 
@@ -115,13 +181,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 {auditLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="py-3 text-slate-400 text-[11px]">{log.timestamp}</td>
-                    <td className="py-3 font-bold text-slate-900 dark:text-white font-sans">{log.actor}</td>
+                    <td className="py-3 font-bold text-slate-900 dark:text-white font-sans">{log.userName}</td>
                     <td className="py-3 font-semibold text-blue-600 dark:text-blue-400 font-sans">{log.action}</td>
-                    <td className="py-3 text-slate-600 dark:text-slate-300 font-sans">{log.detail}</td>
-                    <td className="py-3 text-slate-400">{log.ip}</td>
+                    <td className="py-3 text-slate-600 dark:text-slate-300 font-sans">{log.resource}</td>
+                    <td className="py-3 text-slate-400">{log.ipAddress}</td>
                     <td className="py-3">
-                      <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] font-bold font-sans">
-                        AES-256
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-sans ${
+                        log.complianceLevel === 'CRITICAL_ACCESS'
+                          ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                      }`}>
+                        {log.complianceLevel}
                       </span>
                     </td>
                   </tr>
