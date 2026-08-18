@@ -13,6 +13,7 @@ export const PriorAuthEngine: React.FC = () => {
   const { currentOrg, source: organizationSource } = useOrg();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [localCreated, setLocalCreated] = useState<PriorAuth[]>([]);
+  const [localOnlyIds, setLocalOnlyIds] = useState<Set<string>>(() => new Set());
   const [statusOverrides, setStatusOverrides] = useState<Record<string, PriorAuth['status']>>({});
   const [newRequestedService, setNewRequestedService] = useState('MRI Brain w/ & w/o Contrast');
   const [newCptCode, setNewCptCode] = useState('70553');
@@ -117,6 +118,7 @@ export const PriorAuthEngine: React.FC = () => {
         aiRecommendation,
       };
 
+      setLocalOnlyIds((prev) => new Set(prev).add(newAuth.id));
       setLocalCreated((prev) => [newAuth, ...prev]);
       setSelectedId(newAuth.id);
     } catch {
@@ -134,6 +136,7 @@ export const PriorAuthEngine: React.FC = () => {
         clinicalNotes: newClinicalNotes,
         aiRecommendation: 'AI Analysis: High approval likelihood. Clinical necessity documented.'
       };
+      setLocalOnlyIds((prev) => new Set(prev).add(newAuth.id));
       setLocalCreated((prev) => [newAuth, ...prev]);
       setSelectedId(newAuth.id);
     } finally {
@@ -143,8 +146,8 @@ export const PriorAuthEngine: React.FC = () => {
 
   const handleAdjudicatePa = async (id: string, newStatus: 'approved' | 'denied') => {
     setStatusOverrides((prev) => ({ ...prev, [id]: newStatus }));
-    // Persist when live and the row exists in the DB (skip locally-created ones).
-    if (usingLive && !localCreated.some((pa) => pa.id === id)) {
+    // Persist when Supabase is configured and the row is not a demo-only entry.
+    if (isSupabaseConfigured && !localOnlyIds.has(id)) {
       try {
         await getRepositories().priorAuths.updateStatus(id, newStatus);
       } catch {
