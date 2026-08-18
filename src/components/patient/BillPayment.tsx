@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DollarSign, CreditCard, ShieldCheck, CheckCircle2, Download, AlertCircle, Calendar } from 'lucide-react';
+import { DollarSign, CreditCard, CheckCircle2, FlaskConical } from 'lucide-react';
 
 export const BillPayment: React.FC = () => {
   const [bills, setBills] = useState([
@@ -42,10 +42,17 @@ export const BillPayment: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-teal-400" />
-            <h2 className="font-bold text-lg">Billing, Invoices & HSA/FSA Card Payments</h2>
+            <h2 className="font-bold text-lg">Demo Billing, Invoices & Payment Workflow</h2>
+            <span
+              title="Demo workflow — no live payment processor or invoice ledger is configured yet"
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-100 border border-amber-400/30 mt-2"
+            >
+              <FlaskConical className="w-3 h-3" />
+              Demo billing
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
-            Pay copays, setup interest-free payment plans, and download itemized receipts for tax filing.
+            Review sample copays and payment states. Live HSA/FSA processing and receipt generation are not configured yet.
           </p>
         </div>
 
@@ -90,7 +97,7 @@ export const BillPayment: React.FC = () => {
                   className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5"
                 >
                   <CreditCard className="w-4 h-4" />
-                  Pay with HSA / FSA
+                  Demo Pay
                 </button>
               )}
             </div>
