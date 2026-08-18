@@ -8,7 +8,7 @@ export const LabIntegrationHub: React.FC = () => {
       id: 'lab_101',
       testName: 'Comprehensive Metabolic Panel (CMP) & HbA1c',
       loinc: '24323-8 / 4548-4',
-      facility: 'Quest Diagnostics Regional Lab',
+      facility: 'Demo Reference Lab',
       status: 'completed',
       date: '2026-07-20',
       result: 'HbA1c 5.4% (Normal), Serum Glucose 92 mg/dL'
@@ -17,7 +17,7 @@ export const LabIntegrationHub: React.FC = () => {
       id: 'lab_102',
       testName: 'Lipid Panel with Cardiac Risk Stratification',
       loinc: '57698-3',
-      facility: 'Labcorp Bay Area Hub',
+      facility: 'Demo Collection Site',
       status: 'pending_specimen',
       date: '2026-07-24',
       result: 'Awaiting phlebotomy collection at draw site'
@@ -32,10 +32,10 @@ export const LabIntegrationHub: React.FC = () => {
       id: `lab_${Date.now()}`,
       testName: newTest,
       loinc: loincCode,
-      facility: 'Quest Diagnostics Direct HL7',
+      facility: 'Demo Lab Queue',
       status: 'pending_specimen',
       date: new Date().toISOString().split('T')[0],
-      result: 'Electronic Order Transmitted via HL7 v2.5'
+      result: 'Demo order queued. External lab transmission is not configured.'
     };
 
     setLabOrders((prev) => [newOrder, ...prev]);
@@ -49,10 +49,10 @@ export const LabIntegrationHub: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <TestTube className="w-5 h-5 text-teal-400" />
-            <h2 className="font-bold text-lg">HL7 / FHIR Laboratory Integration Hub</h2>
+            <h2 className="font-bold text-lg">Demo Laboratory Workflow Hub</h2>
           </div>
           <p className="text-xs text-blue-200 mt-1">
-            Order LOINC certified diagnostic panels directly to Quest and Labcorp, and receive structured FHIR ORU_R01 payloads.
+            Review a demo lab-order workflow. Direct Quest/Labcorp and FHIR delivery are not configured yet.
           </p>
         </div>
       </div>
@@ -63,7 +63,7 @@ export const LabIntegrationHub: React.FC = () => {
         <div className="lg:col-span-5 space-y-4 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md">
           <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
             <Send className="w-4 h-4 text-blue-500" />
-            Transmit HL7 Lab Order for {samplePatient.name}
+            Create Demo Lab Order for {samplePatient.name}
           </h3>
 
           <div className="space-y-3 text-xs">

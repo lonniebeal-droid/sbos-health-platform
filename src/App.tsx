@@ -112,7 +112,7 @@ function AppShell() {
       {/* Footer */}
       <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-6 text-center text-xs text-slate-500 dark:text-slate-400">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>SBOS™ (Smart Healthcare Operating System) • 256-Bit Encrypted HIPAA Compliant Platform</span>
+          <span>SBOS™ (Smart Healthcare Operating System) • Secure healthcare operations platform — production controls in progress</span>
           <span className="font-mono text-[11px] text-teal-600 dark:text-teal-400">Gemini AI Engine</span>
         </div>
       </footer>

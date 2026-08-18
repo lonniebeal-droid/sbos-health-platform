@@ -195,7 +195,7 @@ export const ClinicalDocumentation: React.FC = () => {
           <div className="pt-2 flex justify-end">
             {savedSuccess ? (
               <div className="px-4 py-2 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" /> Note Digitally Signed & Synced to EHR!
+                <CheckCircle2 className="w-4 h-4" /> Demo note generated. EHR sync and digital signing are not configured yet.
               </div>
             ) : (
               <button

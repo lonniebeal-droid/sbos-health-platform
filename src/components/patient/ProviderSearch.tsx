@@ -100,7 +100,7 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
           className="px-4 py-2.5 rounded-xl bg-teal-400 hover:bg-teal-300 text-slate-950 font-bold text-xs shadow-md flex items-center gap-2 transition-transform active:scale-95"
         >
           <Video className="w-4 h-4 text-slate-950" />
-          Launch Live Telehealth Room
+          Open Demo Telehealth Room
         </button>
       </div>
 
@@ -269,7 +269,7 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
 
             {bookingSuccess ? (
               <div className="p-3 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-bold text-center flex items-center justify-center gap-2">
-                <CheckCircle className="w-4 h-4" /> Appointment Confirmed & Calendar Synced!
+                <CheckCircle className="w-4 h-4" /> Demo appointment created. Calendar sync is not configured yet.
               </div>
             ) : (
               <button

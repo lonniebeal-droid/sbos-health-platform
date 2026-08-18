@@ -110,7 +110,7 @@ export const AIAssistantWidget: React.FC<AIAssistantWidgetProps> = ({
           <div>
             <h3 className="font-bold text-sm leading-tight flex items-center gap-2">
               Jessie AI Care Navigator
-              <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-mono">HIPAA AI</span>
+              <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-mono">Demo AI</span>
             </h3>
             <p className="text-[11px] text-teal-100 font-medium">
               SBOS Smart Intelligence Assistant
@@ -243,7 +243,7 @@ export const AIAssistantWidget: React.FC<AIAssistantWidgetProps> = ({
         <div className="flex items-center justify-between mt-2 px-1 text-[10px] text-slate-400">
           <span className="flex items-center gap-1">
             <ShieldCheck className="w-3 h-3 text-teal-500" />
-            256-Bit Encrypted HIPAA Vault
+            Secure assistant workspace — demo mode until production controls are verified
           </span>
           <span>Powered by Gemini 3.6</span>
         </div>

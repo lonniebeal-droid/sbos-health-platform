@@ -56,7 +56,7 @@ export const TelehealthRoom: React.FC<TelehealthRoomProps> = ({ onLeaveCall }) =
         <div className="flex items-center gap-2 text-xs">
           <span className="px-3 py-1 rounded-full bg-slate-800 text-slate-300 font-mono flex items-center gap-1.5 border border-slate-700">
             <Shield className="w-3.5 h-3.5 text-teal-400" />
-            256-Bit HIPAA Stream
+            Demo telehealth room
           </span>
           <button
             onClick={onLeaveCall}
@@ -134,8 +134,8 @@ export const TelehealthRoom: React.FC<TelehealthRoomProps> = ({ onLeaveCall }) =
               {/* Vitals Summary Card */}
               <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700 space-y-1.5 text-[11px]">
                 <div className="flex justify-between font-bold text-teal-300">
-                  <span className="flex items-center gap-1"><Activity className="w-3.5 h-3.5" /> Live Vitals</span>
-                  <span>Synced</span>
+                  <span className="flex items-center gap-1"><Activity className="w-3.5 h-3.5" /> Demo Vitals</span>
+                  <span>Sample</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-slate-300 pt-1">
                   <div>BP: <span className="font-mono font-bold text-white">{samplePatient.recentVitals.bloodPressure}</span></div>

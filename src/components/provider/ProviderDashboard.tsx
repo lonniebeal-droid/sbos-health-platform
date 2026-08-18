@@ -13,9 +13,9 @@ export const ProviderDashboard: React.FC = () => {
   const navItems = [
     { id: 'patients', label: 'EHR Patient Directory', icon: <Users className="w-4 h-4" /> },
     { id: 'clinical', label: 'AI Clinical BIRP Notes', icon: <FileText className="w-4 h-4" /> },
-    { id: 'erx', label: 'e-Prescribing (Surescripts)', icon: <Pill className="w-4 h-4" /> },
+    { id: 'erx', label: 'e-Prescribing (Demo)', icon: <Pill className="w-4 h-4" /> },
     { id: 'prior_auth', label: 'Prior Auth Engine', icon: <ShieldAlert className="w-4 h-4" /> },
-    { id: 'labs', label: 'HL7 Lab Integration', icon: <TestTube className="w-4 h-4" /> },
+    { id: 'labs', label: 'Lab Workflow (Demo)', icon: <TestTube className="w-4 h-4" /> },
     { id: 'assistant', label: 'Clinical AI Decision Support', icon: <Stethoscope className="w-4 h-4" /> },
   ];
 
