@@ -5,7 +5,7 @@ import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
 import { mapPriorAuth } from '../../lib/db/mappers';
 import { useAsync } from '../../lib/hooks/useAsync';
-import { ShieldAlert, CheckCircle2, XCircle, Clock, Sparkles, FileText, Send, AlertTriangle, ChevronRight } from 'lucide-react';
+import { ShieldAlert, CheckCircle2, XCircle, Sparkles, Send, Database, FlaskConical } from 'lucide-react';
 
 export const PriorAuthEngine: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -19,7 +19,7 @@ export const PriorAuthEngine: React.FC = () => {
 
   // Load real prior authorizations (RLS-scoped to the provider's org); fall back
   // to demo data when Supabase is unconfigured or empty.
-  const { data: realPas } = useAsync<PriorAuth[]>(
+  const { data: realPas, loading, error } = useAsync<PriorAuth[]>(
     async () => (await getRepositories().priorAuths.listDetailed()).map(mapPriorAuth),
     isSupabaseConfigured,
   );
@@ -110,12 +110,27 @@ export const PriorAuthEngine: React.FC = () => {
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <ShieldAlert className="w-5 h-5 text-teal-400" />
             <h2 className="font-bold text-lg">AI Prior Authorization & Clinical Necessity Engine</h2>
+            <span
+              title={usingLive ? 'Loaded from Supabase' : 'Demo data fallback'}
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                usingLive
+                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                  : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
+              }`}
+            >
+              {usingLive ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {usingLive ? 'Live data' : 'Demo data'}
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
-            Accelerate prior authorizations with instant Milliman Care Guidelines (MCG) matching and AI payer rule verification.
+            {loading
+              ? 'Loading prior authorizations...'
+              : error
+                ? `Could not load live prior authorizations (${error}); showing demo data.`
+                : 'Accelerate prior authorizations with instant Milliman Care Guidelines (MCG) matching and AI payer rule verification.'}
           </p>
         </div>
       </div>

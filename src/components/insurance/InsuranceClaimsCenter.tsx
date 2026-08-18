@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { sampleClaims, samplePriorAuths } from '../../data/mockData';
-import { Claim, PriorAuth, ClaimStatus } from '../../types';
+import { sampleClaims } from '../../data/mockData';
+import { Claim, ClaimStatus } from '../../types';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
 import { mapClaim } from '../../lib/db/mappers';
 import { useAsync } from '../../lib/hooks/useAsync';
-import { ShieldAlert, CheckCircle2, XCircle, Clock, Sparkles, AlertTriangle, FileText, Filter, ChevronRight, DollarSign, Activity } from 'lucide-react';
+import { ShieldAlert, CheckCircle2, XCircle, Sparkles, Database, FlaskConical } from 'lucide-react';
 
 export const InsuranceClaimsCenter: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -13,7 +13,7 @@ export const InsuranceClaimsCenter: React.FC = () => {
   const [isAnalyzingFwa, setIsAnalyzingFwa] = useState(false);
   const [fwaResult, setFwaResult] = useState<any>(null);
 
-  const { data: realClaims } = useAsync<Claim[]>(
+  const { data: realClaims, loading, error } = useAsync<Claim[]>(
     async () => (await getRepositories().claims.listDetailed()).map(mapClaim),
     isSupabaseConfigured,
   );
@@ -76,12 +76,27 @@ export const InsuranceClaimsCenter: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-indigo-900 via-purple-900 to-slate-900 text-white shadow-lg">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <ShieldAlert className="w-5 h-5 text-teal-400" />
             <h2 className="font-bold text-lg">Payer Claims Adjudication & AI Fraud Detection (FWA)</h2>
+            <span
+              title={usingLive ? 'Loaded from Supabase' : 'Demo data fallback'}
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                usingLive
+                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                  : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
+              }`}
+            >
+              {usingLive ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {usingLive ? 'Live data' : 'Demo data'}
+            </span>
           </div>
           <p className="text-xs text-indigo-200 mt-1">
-            Real-time EDI 837 claims ingestion, automated rule adjudication, and AI anomaly detection.
+            {loading
+              ? 'Loading claims queue...'
+              : error
+                ? `Could not load live claims (${error}); showing demo data.`
+                : 'Real-time EDI 837 claims ingestion, automated rule adjudication, and AI anomaly detection.'}
           </p>
         </div>
 
