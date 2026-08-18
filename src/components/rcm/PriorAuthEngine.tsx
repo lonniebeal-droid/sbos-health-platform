@@ -4,10 +4,13 @@ import { PriorAuth } from '../../types';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
 import { mapPriorAuth } from '../../lib/db/mappers';
+import type { PriorAuthorizationInsert } from '../../lib/db/database.types';
 import { useAsync } from '../../lib/hooks/useAsync';
+import { useOrg } from '../../lib/organizationContext';
 import { ShieldAlert, CheckCircle2, XCircle, Sparkles, Send, Database, FlaskConical } from 'lucide-react';
 
 export const PriorAuthEngine: React.FC = () => {
+  const { currentOrg, source: organizationSource } = useOrg();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [localCreated, setLocalCreated] = useState<PriorAuth[]>([]);
   const [statusOverrides, setStatusOverrides] = useState<Record<string, PriorAuth['status']>>({});
@@ -24,6 +27,7 @@ export const PriorAuthEngine: React.FC = () => {
     isSupabaseConfigured,
   );
   const usingLive = isSupabaseConfigured && !!realPas && realPas.length > 0;
+  const canPersistNewPa = isSupabaseConfigured && organizationSource === 'supabase';
   const base: PriorAuth[] = usingLive ? (realPas as PriorAuth[]) : samplePriorAuths;
   const priorAuths: PriorAuth[] = [...localCreated, ...base].map((pa) =>
     statusOverrides[pa.id] ? { ...pa, status: statusOverrides[pa.id] } : pa,
@@ -50,6 +54,55 @@ export const PriorAuthEngine: React.FC = () => {
       });
       const data = await response.json();
       
+      const aiRecommendation = data.reply || 'AI Analysis: Meets MCG clinical criteria based on failed 1st line pharmaceutical trial.';
+
+      if (canPersistNewPa) {
+        const repos = getRepositories();
+        const [patients, providers] = await Promise.all([
+          repos.patients.listDetailed(),
+          repos.providers.listDetailed(),
+        ]);
+        const patient = patients[0];
+        const provider = providers[0];
+
+        if (patient && provider) {
+          const payload: PriorAuthorizationInsert = {
+            patient_id: patient.id,
+            provider_id: provider.id,
+            organization_id: currentOrg.id,
+            requested_service: newRequestedService,
+            icd10_code: newIcdCode,
+            cpt_code: newCptCode,
+            status: 'pending',
+            clinical_notes: newClinicalNotes,
+            ai_recommendation: aiRecommendation,
+          };
+          const created = await repos.priorAuths.create(payload);
+          const newAuth: PriorAuth = {
+            id: created.id,
+            authNumber: `PA-${created.id.slice(0, 8).toUpperCase()}`,
+            patientId: created.patient_id ?? undefined,
+            patientName: patient.user?.full_name ?? samplePatient.name,
+            providerName: provider.user?.full_name ?? 'Dr. James Wilson, MD',
+            requestingProvider: provider.user?.full_name ?? 'Dr. James Wilson, MD',
+            requestedService: created.requested_service,
+            serviceType: created.requested_service,
+            icd10Code: created.icd10_code,
+            icdCode: created.icd10_code,
+            cptCode: created.cpt_code,
+            status: created.status,
+            requestedDate: created.created_at.slice(0, 10),
+            submittedDate: created.created_at.slice(0, 10),
+            clinicalNotes: created.clinical_notes ?? undefined,
+            clinicalNotesSummary: created.clinical_notes ?? undefined,
+            aiRecommendation: created.ai_recommendation ?? undefined,
+          };
+          setLocalCreated((prev) => [newAuth, ...prev]);
+          setSelectedId(newAuth.id);
+          return;
+        }
+      }
+
       const newAuth: PriorAuth = {
         id: `pa_${Date.now()}`,
         patientId: samplePatient.id,
@@ -61,7 +114,7 @@ export const PriorAuthEngine: React.FC = () => {
         status: 'pending',
         submittedDate: new Date().toISOString().split('T')[0],
         clinicalNotes: newClinicalNotes,
-        aiRecommendation: data.reply || 'AI Analysis: Meets MCG clinical criteria based on failed 1st line pharmaceutical trial.'
+        aiRecommendation,
       };
 
       setLocalCreated((prev) => [newAuth, ...prev]);
@@ -114,15 +167,15 @@ export const PriorAuthEngine: React.FC = () => {
             <ShieldAlert className="w-5 h-5 text-teal-400" />
             <h2 className="font-bold text-lg">AI Prior Authorization & Clinical Necessity Engine</h2>
             <span
-              title={usingLive ? 'Loaded from Supabase' : 'Demo data fallback'}
+              title={canPersistNewPa ? 'Loaded from Supabase; new requests persist when patient/provider rows exist' : 'Demo data fallback'}
               className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                usingLive
+                canPersistNewPa
                   ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
                   : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
               }`}
             >
-              {usingLive ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
-              {usingLive ? 'Live data' : 'Demo data'}
+              {canPersistNewPa ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {canPersistNewPa ? 'Live data' : 'Demo data'}
             </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
@@ -192,7 +245,7 @@ export const PriorAuthEngine: React.FC = () => {
               className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2"
             >
               <Sparkles className="w-4 h-4 text-teal-300" />
-              {isSubmitting ? 'Evaluating Clinical Rules...' : 'Submit 278 Prior Auth & Evaluate Rules'}
+              {isSubmitting ? 'Evaluating Clinical Rules...' : canPersistNewPa ? 'Create Prior Auth Request' : 'Create Demo Prior Auth Request'}
             </button>
           </div>
         </div>
