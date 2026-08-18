@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { sampleMedicalRecords, samplePatient } from '../../data/mockData';
-import { MedicalRecord } from '../../types';
+import { MedicalRecord, Patient } from '../../types';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
-import { mapMedicalRecord } from '../../lib/db/mappers';
+import { mapMedicalRecord, mapPatient } from '../../lib/db/mappers';
 import { useAsync } from '../../lib/hooks/useAsync';
 import { Activity, Heart, User, Download, CheckCircle2, Database, FlaskConical } from 'lucide-react';
 
@@ -15,8 +15,22 @@ export const MedicalRecordsView: React.FC = () => {
     async () => (await getRepositories().medicalRecords.list()).map(mapMedicalRecord),
     isSupabaseConfigured,
   );
+  const { data: realPatients } = useAsync<Patient[]>(
+    async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
+    isSupabaseConfigured,
+  );
   const usingLive = isSupabaseConfigured && !!realRecords && realRecords.length > 0;
   const records: MedicalRecord[] = usingLive ? (realRecords as MedicalRecord[]) : sampleMedicalRecords;
+  const profilePatient = isSupabaseConfigured && realPatients && realPatients.length > 0
+    ? realPatients[0]
+    : samplePatient;
+  const familyOptions = [
+    { id: profilePatient.id, label: `${profilePatient.name} (Primary Subscriber)` },
+    ...(profilePatient.familyMembers ?? []).map((member) => ({
+      id: member.id,
+      label: `${member.name} (${member.relation})`,
+    })),
+  ];
 
   return (
     <div className="space-y-6">
@@ -56,9 +70,9 @@ export const MedicalRecordsView: React.FC = () => {
             onChange={(e) => setActiveFamilyMember(e.target.value)}
             className="bg-transparent text-white text-xs font-bold focus:outline-none cursor-pointer pr-2"
           >
-            <option value="pat_001" className="text-slate-900">Sarah Jenkins (Primary Subscriber)</option>
-            <option value="fm_001" className="text-slate-900">David Jenkins (Spouse)</option>
-            <option value="fm_002" className="text-slate-900">Leo Jenkins (Child Dependent)</option>
+            {familyOptions.map((option) => (
+              <option key={option.id} value={option.id} className="text-slate-900">{option.label}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -67,14 +81,14 @@ export const MedicalRecordsView: React.FC = () => {
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md space-y-4">
         <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
           <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
-          Latest Vitals Telemetry ({samplePatient.recentVitals.date})
+          Latest Vitals {usingLive ? 'from Patient Profile' : 'Telemetry'} ({profilePatient.recentVitals.date})
         </h3>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
             <p className="text-[10px] font-bold text-slate-400 uppercase">Blood Pressure</p>
             <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 font-mono">
-              {samplePatient.recentVitals.bloodPressure} <span className="text-xs font-normal text-slate-500">mmHg</span>
+              {profilePatient.recentVitals.bloodPressure} <span className="text-xs font-normal text-slate-500">mmHg</span>
             </p>
             <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">Optimal Range</span>
           </div>
@@ -82,7 +96,7 @@ export const MedicalRecordsView: React.FC = () => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
             <p className="text-[10px] font-bold text-slate-400 uppercase">Heart Rate</p>
             <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 font-mono">
-              {samplePatient.recentVitals.heartRate} <span className="text-xs font-normal text-slate-500">bpm</span>
+              {profilePatient.recentVitals.heartRate} <span className="text-xs font-normal text-slate-500">bpm</span>
             </p>
             <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">Resting Normal</span>
           </div>
@@ -90,7 +104,7 @@ export const MedicalRecordsView: React.FC = () => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
             <p className="text-[10px] font-bold text-slate-400 uppercase">Blood Oxygen (SpO2)</p>
             <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 font-mono">
-              {samplePatient.recentVitals.spO2}%
+              {profilePatient.recentVitals.spO2}%
             </p>
             <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 mt-1 block">Optimal Saturation</span>
           </div>
@@ -98,7 +112,7 @@ export const MedicalRecordsView: React.FC = () => {
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
             <p className="text-[10px] font-bold text-slate-400 uppercase">Body Weight</p>
             <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 font-mono">
-              {samplePatient.recentVitals.weightLbs} <span className="text-xs font-normal text-slate-500">lbs</span>
+              {profilePatient.recentVitals.weightLbs} <span className="text-xs font-normal text-slate-500">lbs</span>
             </p>
             <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mt-1 block">BMI 22.4 (Normal)</span>
           </div>
@@ -107,7 +121,7 @@ export const MedicalRecordsView: React.FC = () => {
 
       {/* Lab Results & Health Records */}
       <div className="space-y-3">
-        <h3 className="font-bold text-sm text-slate-900 dark:text-white">Certified Lab Reports & Visit Summaries</h3>
+        <h3 className="font-bold text-sm text-slate-900 dark:text-white">Lab Reports & Visit Summaries</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {records.map((rec) => (
             <div
@@ -131,13 +145,13 @@ export const MedicalRecordsView: React.FC = () => {
 
               <div className="flex justify-between items-center pt-1">
                 <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Certified Normal
+                  <CheckCircle2 className="w-3.5 h-3.5" /> {rec.status === 'normal' ? 'Normal' : rec.status}
                 </span>
                 <button
-                  onClick={() => alert(`Exporting CADA/LOINC EHR PDF for ${rec.title}...`)}
+                  onClick={() => alert(`Demo export for ${rec.title}. PDF/EHR export is not configured yet.`)}
                   className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                 >
-                  <Download className="w-3.5 h-3.5" /> Export PDF
+                  <Download className="w-3.5 h-3.5" /> Demo Export
                 </button>
               </div>
             </div>
