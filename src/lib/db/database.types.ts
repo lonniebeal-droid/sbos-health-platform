@@ -101,6 +101,11 @@ export interface ProviderRow {
   created_at: string;
 }
 
+/** A provider row with its linked user profile for display identity. */
+export interface ProviderWithUser extends ProviderRow {
+  user: { full_name: string; phone: string | null } | null;
+}
+
 export interface AppointmentRow {
   id: string;
   patient_id: string | null;

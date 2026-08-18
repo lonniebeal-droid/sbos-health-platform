@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { sampleProviders, sampleAppointments } from '../../data/mockData';
 import { Provider, Appointment } from '../../types';
-import { Search, MapPin, Star, Calendar, Clock, Video, CheckCircle, Stethoscope, ChevronRight, Filter } from 'lucide-react';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapProvider } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
+import { Search, MapPin, Star, Calendar, Clock, Video, CheckCircle, Stethoscope, Database, FlaskConical } from 'lucide-react';
 
 interface ProviderSearchProps {
   onBookAppointment: (appointment: Appointment) => void;
@@ -19,10 +23,16 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
   const [bookingTime, setBookingTime] = useState('10:00 AM');
   const [visitType, setVisitType] = useState<'telehealth' | 'in_person'>('telehealth');
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const { data: realProviders, loading, error } = useAsync<Provider[]>(
+    async () => (await getRepositories().providers.listDetailed()).map(mapProvider),
+    isSupabaseConfigured,
+  );
+  const usingLive = isSupabaseConfigured && !!realProviders && realProviders.length > 0;
+  const providers = usingLive ? realProviders : sampleProviders;
 
   const specialties = ['All', 'Internal Medicine', 'Behavioral Health', 'Cardiology'];
 
-  const filteredProviders = sampleProviders.filter((p) => {
+  const filteredProviders = providers.filter((p) => {
     const matchesQuery = p.name.toLowerCase().includes(query.toLowerCase()) ||
       p.specialty.toLowerCase().includes(query.toLowerCase());
     const matchesSpecialty = selectedSpecialty === 'All' || p.specialty.includes(selectedSpecialty);
@@ -61,12 +71,27 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Stethoscope className="w-5 h-5 text-teal-400" />
             <h2 className="font-bold text-lg">In-Network Provider Search & Appointment Booking</h2>
+            <span
+              title={usingLive ? 'Loaded from Supabase providers' : 'Demo provider fallback'}
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                usingLive
+                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                  : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
+              }`}
+            >
+              {usingLive ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {usingLive ? 'Live providers' : 'Demo providers'}
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
-            Connect with board-certified physicians, therapists, and cardiologists with instant scheduling.
+            {loading
+              ? 'Loading provider directory...'
+              : error
+                ? `Could not load live providers (${error}); showing demo data.`
+                : 'Connect with providers and book appointments through configured scheduling workflows.'}
           </p>
         </div>
 

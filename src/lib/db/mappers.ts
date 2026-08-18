@@ -8,8 +8,8 @@
 // and the schema gaps are tracked in TECH_DEBT.md until columns/tables exist.
 
 import type { TenantOrg } from '../organizationContext';
-import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow } from './database.types';
+import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider } from '../../types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser } from './database.types';
 
 /** BenefitsPlanRow -> the UI BenefitsPlan domain type. */
 export function mapBenefitsPlan(row: BenefitsPlanRow): BenefitsPlan {
@@ -168,6 +168,28 @@ export function mapPatient(row: PatientWithUser): Patient {
     chronicConditions: row.chronic_conditions ?? [],
     recentVitals: row.recent_vitals ?? EMPTY_VITALS,
     familyMembers: row.family_members ?? [],
+  };
+}
+
+/** ProviderWithUser -> Provider search display model; missing profile fields stay explicit placeholders. */
+export function mapProvider(row: ProviderWithUser): Provider {
+  const name = row.user?.full_name ?? 'Unknown Provider';
+  return {
+    id: row.id,
+    name,
+    specialty: row.specialty,
+    npi: row.npi,
+    rating: 0,
+    reviewCount: 0,
+    inNetwork: true,
+    hospitalAffiliation: row.organization_id ? 'Organization network' : 'Network not assigned',
+    address: '',
+    phone: row.user?.phone ?? '',
+    nextAvailableSlot: 'Check scheduling',
+    avatar: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`,
+    acceptsNewPatients: row.accepting_new_patients,
+    bio: `Licensed ${row.specialty} provider. Live row loaded from the providers table.`,
+    education: `License ${row.license_number}`,
   };
 }
 
