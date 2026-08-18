@@ -12,6 +12,14 @@ interface AdminPortalProps {
   onSelectTenant?: (tenantId: string) => void;
 }
 
+interface SystemHealth {
+  status: string;
+  system: string;
+  version: string;
+  timestamp: string;
+  aiEngineActive: boolean;
+}
+
 export const AdminPortal: React.FC<AdminPortalProps> = ({
   activeTenantId = 'tnt_001',
   onSelectTenant = () => {}
@@ -72,6 +80,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   );
   const usingLiveAuditLogs = isSupabaseConfigured && !!realAuditLogs && realAuditLogs.length > 0;
   const auditLogs = usingLiveAuditLogs ? realAuditLogs : fallbackAuditLogs;
+  const { data: systemHealth, loading: systemLoading, error: systemError } = useAsync<SystemHealth>(
+    async () => {
+      const res = await fetch('/api/health');
+      if (!res.ok) throw new Error(`health check returned ${res.status}`);
+      return res.json() as Promise<SystemHealth>;
+    },
+    true,
+  );
+  const systemStatus = systemHealth?.status === 'ok' ? 'Operational' : 'Not verified';
+  const aiStatus = systemHealth?.aiEngineActive ? 'Configured' : 'Demo fallback';
 
   return (
     <div className="space-y-6">
@@ -108,7 +126,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           <div className="px-4 py-2 rounded-2xl bg-slate-900/80 border border-slate-700 text-right">
             <span className="text-slate-400 text-[10px] uppercase font-bold block">HIPAA Compliance Status</span>
             <span className="font-mono font-extrabold text-teal-400 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> 100% Certified
+              <CheckCircle2 className="w-3.5 h-3.5" /> Controls In Progress
             </span>
           </div>
         </div>
@@ -211,21 +229,43 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       {activeTab === 'system' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Gemini 2.5 Flash API</span>
-            <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">Operational (18ms)</p>
-            <p className="text-xs text-slate-500">Live AI Clinical & Benefits Assistance</p>
+            <span className="text-[10px] font-bold text-slate-400 uppercase">SBOS API Health</span>
+            <p className={`text-xl font-extrabold font-mono ${
+              systemHealth?.status === 'ok'
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-amber-600 dark:text-amber-400'
+            }`}>
+              {systemLoading ? 'Checking...' : systemStatus}
+            </p>
+            <p className="text-xs text-slate-500">
+              {systemError
+                ? `Health endpoint unavailable (${systemError})`
+                : systemHealth
+                  ? `${systemHealth.system} v${systemHealth.version}`
+                  : 'Waiting for health endpoint response'}
+            </p>
           </div>
 
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-            <span className="text-[10px] font-bold text-slate-400 uppercase">EDI 837/834 Clearinghouse</span>
-            <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">Connected</p>
-            <p className="text-xs text-slate-500">Real-time Adjudication Sync</p>
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Gemini AI Engine</span>
+            <p className={`text-xl font-extrabold font-mono ${
+              systemHealth?.aiEngineActive
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-amber-600 dark:text-amber-400'
+            }`}>
+              {systemLoading ? 'Checking...' : aiStatus}
+            </p>
+            <p className="text-xs text-slate-500">
+              Uses `/api/health`; demo AI responses remain available when no API key is configured.
+            </p>
           </div>
 
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-            <span className="text-[10px] font-bold text-slate-400 uppercase">256-Bit WebRTC Relay</span>
-            <p className="text-xl font-extrabold text-teal-600 dark:text-teal-400 font-mono">Active (1080p)</p>
-            <p className="text-xs text-slate-500">Telehealth Video Bridge</p>
+            <span className="text-[10px] font-bold text-slate-400 uppercase">External Integrations</span>
+            <p className="text-xl font-extrabold text-amber-600 dark:text-amber-400 font-mono">Not verified</p>
+            <p className="text-xs text-slate-500">
+              Clearinghouse, WebRTC relay, and production compliance attestations still need real provider connections.
+            </p>
           </div>
         </div>
       )}
