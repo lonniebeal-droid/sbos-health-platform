@@ -5,13 +5,13 @@ import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
 import { mapMedicalRecord } from '../../lib/db/mappers';
 import { useAsync } from '../../lib/hooks/useAsync';
-import { Activity, FileText, Heart, Shield, User, Download, CheckCircle2, ChevronRight, BarChart2 } from 'lucide-react';
+import { Activity, Heart, User, Download, CheckCircle2, Database, FlaskConical } from 'lucide-react';
 
 export const MedicalRecordsView: React.FC = () => {
   const [activeFamilyMember, setActiveFamilyMember] = useState<string>('pat_001');
 
   // Load real, RLS-scoped medical records; fall back to demo data.
-  const { data: realRecords } = useAsync<MedicalRecord[]>(
+  const { data: realRecords, loading, error } = useAsync<MedicalRecord[]>(
     async () => (await getRepositories().medicalRecords.list()).map(mapMedicalRecord),
     isSupabaseConfigured,
   );
@@ -24,12 +24,27 @@ export const MedicalRecordsView: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Activity className="w-5 h-5 text-teal-400" />
             <h2 className="font-bold text-lg">Electronic Health Records & Vitals Vault</h2>
+            <span
+              title={usingLive ? 'Loaded from Supabase medical_records' : 'Demo medical-record fallback'}
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                usingLive
+                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                  : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
+              }`}
+            >
+              {usingLive ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {usingLive ? 'Live records' : 'Demo records'}
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
-            Access certified lab results, immunization histories, and continuous health telemetry graphs.
+            {loading
+              ? 'Loading medical records...'
+              : error
+                ? `Could not load live medical records (${error}); showing demo data.`
+                : 'Access lab results, immunization histories, and health telemetry summaries.'}
           </p>
         </div>
 
