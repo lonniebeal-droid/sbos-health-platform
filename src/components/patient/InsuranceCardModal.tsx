@@ -1,20 +1,23 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, Download, Share2, Copy, Check, QrCode, CreditCard } from 'lucide-react';
+import { X, ShieldCheck, Download, Copy, Check, QrCode, CreditCard } from 'lucide-react';
 import { samplePatient, sampleBenefitsPlan } from '../../data/mockData';
+import type { BenefitsPlan, Patient } from '../../types';
 
 interface InsuranceCardModalProps {
   isOpen: boolean;
   onClose: () => void;
+  patient?: Patient;
+  plan?: BenefitsPlan;
 }
 
-export const InsuranceCardModal: React.FC<InsuranceCardModalProps> = ({ isOpen, onClose }) => {
+export const InsuranceCardModal: React.FC<InsuranceCardModalProps> = ({ isOpen, onClose, patient = samplePatient, plan = sampleBenefitsPlan }) => {
   const [cardSide, setCardSide] = useState<'front' | 'back'>('front');
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(samplePatient.insuranceId);
+    navigator.clipboard.writeText(patient.insuranceId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -75,27 +78,27 @@ export const InsuranceCardModal: React.FC<InsuranceCardModalProps> = ({ isOpen, 
                     <span className="font-extrabold text-lg tracking-wider">SBOS HEALTH</span>
                   </div>
                   <p className="text-[10px] text-teal-200 uppercase font-mono tracking-widest mt-0.5">
-                    {sampleBenefitsPlan.planName}
+                    {plan.planName}
                   </p>
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-400/20 text-teal-300 border border-teal-400/30">
-                  {sampleBenefitsPlan.networkType} IN-NETWORK
+                  {plan.networkType} IN-NETWORK
                 </span>
               </div>
 
               {/* Middle Member Info */}
               <div className="my-2 space-y-1">
                 <p className="text-[10px] uppercase text-slate-400 font-medium">Subscriber Name</p>
-                <p className="font-bold text-base text-white tracking-wide">{samplePatient.name}</p>
+                <p className="font-bold text-base text-white tracking-wide">{patient.name}</p>
                 
                 <div className="grid grid-cols-2 gap-4 pt-1">
                   <div>
                     <p className="text-[9px] uppercase text-slate-400 font-medium">Member ID</p>
-                    <p className="font-mono font-bold text-xs text-teal-300">{samplePatient.insuranceId}</p>
+                    <p className="font-mono font-bold text-xs text-teal-300">{patient.insuranceId}</p>
                   </div>
                   <div>
                     <p className="text-[9px] uppercase text-slate-400 font-medium">Group Number</p>
-                    <p className="font-mono font-bold text-xs text-slate-200">{samplePatient.policyGroup}</p>
+                    <p className="font-mono font-bold text-xs text-slate-200">{patient.policyGroup}</p>
                   </div>
                 </div>
               </div>
@@ -104,19 +107,19 @@ export const InsuranceCardModal: React.FC<InsuranceCardModalProps> = ({ isOpen, 
               <div className="pt-2 border-t border-white/10 grid grid-cols-4 gap-1 text-center">
                 <div>
                   <p className="text-[8px] text-slate-400">PCP</p>
-                  <p className="text-xs font-bold text-teal-300">${sampleBenefitsPlan.copays.primaryCare}</p>
+                  <p className="text-xs font-bold text-teal-300">${plan.copays.primaryCare}</p>
                 </div>
                 <div>
                   <p className="text-[8px] text-slate-400">SPEC</p>
-                  <p className="text-xs font-bold text-teal-300">${sampleBenefitsPlan.copays.specialist}</p>
+                  <p className="text-xs font-bold text-teal-300">${plan.copays.specialist}</p>
                 </div>
                 <div>
                   <p className="text-[8px] text-slate-400">URGENT</p>
-                  <p className="text-xs font-bold text-teal-300">${sampleBenefitsPlan.copays.urgentCare}</p>
+                  <p className="text-xs font-bold text-teal-300">${plan.copays.urgentCare}</p>
                 </div>
                 <div>
                   <p className="text-[8px] text-slate-400">ER</p>
-                  <p className="text-xs font-bold text-teal-300">${sampleBenefitsPlan.copays.emergencyRoom}</p>
+                  <p className="text-xs font-bold text-teal-300">${plan.copays.emergencyRoom}</p>
                 </div>
               </div>
 
@@ -125,16 +128,16 @@ export const InsuranceCardModal: React.FC<InsuranceCardModalProps> = ({ isOpen, 
             <div className="w-full aspect-[1.58/1] rounded-2xl bg-slate-900 text-white p-5 shadow-2xl relative overflow-hidden border border-slate-700 flex flex-col justify-between text-xs">
               
               <div className="bg-black/60 p-2.5 rounded-lg border border-slate-800 text-[10px] space-y-1">
-                <p className="font-bold text-slate-300">CLAIMS SUBMISSION FOR PROVIDERS:</p>
-                <p className="text-slate-400 font-mono">Payer ID: SBOS-99102 | EDI Claims Portal: https://claims.sbos.health</p>
-                <p className="text-slate-400">24/7 Provider Line: 1-800-555-SBOS (7267)</p>
+                <p className="font-bold text-slate-300">PROVIDER BILLING REFERENCE:</p>
+                <p className="text-slate-400 font-mono">Payer ID: demo only | Live EDI portal not configured</p>
+                <p className="text-slate-400">Provider support line not configured for production use</p>
               </div>
 
               <div className="flex items-center justify-between my-2">
                 <div>
-                  <p className="text-[10px] font-bold text-slate-300">Mental Health & Telehealth Hotline</p>
-                  <p className="text-xs font-mono text-teal-400">1-888-SBOS-MIND</p>
-                  <p className="text-[9px] text-slate-400">24/7 Crisis & Telephonic Triage</p>
+                  <p className="text-[10px] font-bold text-slate-300">Care Support</p>
+                  <p className="text-xs font-mono text-teal-400">Demo support contact</p>
+                  <p className="text-[9px] text-slate-400">Production hotline is not configured yet</p>
                 </div>
                 <div className="w-16 h-16 bg-white p-1 rounded-lg flex items-center justify-center">
                   <QrCode className="w-full h-full text-slate-900" />
@@ -160,11 +163,11 @@ export const InsuranceCardModal: React.FC<InsuranceCardModalProps> = ({ isOpen, 
 
           <div className="flex gap-2">
             <button
-              onClick={() => alert('Digital ID Card downloaded to Wallet PDF!')}
+              onClick={() => alert('Demo ID card action. Wallet/PDF export is not configured yet.')}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors"
             >
               <Download className="w-4 h-4" />
-              Save to Apple Wallet / PDF
+              Demo Wallet / PDF
             </button>
           </div>
         </div>

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { samplePatient, sampleAppointments } from '../../data/mockData';
-import { Appointment } from '../../types';
+import { samplePatient, sampleAppointments, sampleBenefitsPlan, sampleClaims, samplePrescriptions } from '../../data/mockData';
+import { Appointment, BenefitsPlan, Claim, Patient, Prescription } from '../../types';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
-import { mapAppointment } from '../../lib/db/mappers';
+import { mapAppointment, mapBenefitsPlan, mapClaim, mapPatient, mapPrescription } from '../../lib/db/mappers';
 import { useAsync } from '../../lib/hooks/useAsync';
 import { InsuranceCardModal } from './InsuranceCardModal';
 import { ClaimsTracker } from './ClaimsTracker';
@@ -44,7 +44,36 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
     async () => (await getRepositories().appointments.listDetailed()).map(mapAppointment),
     isSupabaseConfigured,
   );
+  const { data: realPatients } = useAsync<Patient[]>(
+    async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
+    isSupabaseConfigured,
+  );
+  const { data: realClaims } = useAsync<Claim[]>(
+    async () => (await getRepositories().claims.listDetailed()).map(mapClaim),
+    isSupabaseConfigured,
+  );
+  const { data: realRx } = useAsync<Prescription[]>(
+    async () => (await getRepositories().prescriptions.listDetailed()).map(mapPrescription),
+    isSupabaseConfigured,
+  );
+  const { data: realPlans } = useAsync<BenefitsPlan[]>(
+    async () => (await getRepositories().benefitsPlans.list()).map(mapBenefitsPlan),
+    isSupabaseConfigured,
+  );
   const usingLiveAppts = isSupabaseConfigured && !!realAppts && realAppts.length > 0;
+  const usingLivePatient = isSupabaseConfigured && !!realPatients && realPatients.length > 0;
+  const usingLiveClaims = isSupabaseConfigured && !!realClaims && realClaims.length > 0;
+  const usingLiveRx = isSupabaseConfigured && !!realRx && realRx.length > 0;
+  const usingLivePlan = isSupabaseConfigured && !!realPlans && realPlans.length > 0;
+  const dashboardPatient = usingLivePatient ? realPatients[0] : samplePatient;
+  const dashboardPlan = usingLivePlan ? realPlans[0] : sampleBenefitsPlan;
+  const dashboardClaims = usingLiveClaims ? realClaims : sampleClaims;
+  const dashboardRx = usingLiveRx ? realRx : samplePrescriptions;
+  const inReviewClaims = dashboardClaims.filter((claim) => claim.status === 'in_review').length;
+  const approvedAmount = dashboardClaims.reduce((total, claim) => total + claim.planCoveredAmount, 0);
+  const activeRx = dashboardRx.filter((rx) => rx.status === 'active').length;
+  const nextRx = dashboardRx.find((rx) => rx.status === 'active') ?? dashboardRx[0];
+  const outstandingCopay = dashboardClaims.reduce((total, claim) => total + claim.patientResponsibility, 0);
   const appointments: Appointment[] = [
     ...localAppts,
     ...(usingLiveAppts ? (realAppts as Appointment[]) : sampleAppointments),
@@ -101,13 +130,13 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
           <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-2 z-10">
               <span className="text-xs font-bold font-mono px-3 py-1 rounded-full bg-teal-400/20 text-teal-300 border border-teal-400/30">
-                MEMBER ID: {samplePatient.insuranceId}
+                MEMBER ID: {dashboardPatient.insuranceId}
               </span>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Welcome back, {samplePatient.name}
+                Welcome back, {dashboardPatient.name}
               </h1>
               <p className="text-xs sm:text-sm text-blue-200 max-w-xl">
-                Your SBOS Gold Premier PPO plan is active. You have 1 upcoming virtual consultation tomorrow.
+                Your {dashboardPlan.planName} plan is active. You have {appointments.length} upcoming consultation{appointments.length === 1 ? '' : 's'}.
               </p>
             </div>
 
@@ -139,10 +168,10 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
             >
               <div className="flex justify-between items-center text-blue-600 dark:text-blue-400">
                 <CreditCard className="w-5 h-5" />
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950">PPO IN-NETWORK</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950">{dashboardPlan.networkType} IN-NETWORK</span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">Active Insurance Card</p>
-              <p className="font-extrabold text-sm text-slate-900 dark:text-white">SBOS Gold Premier</p>
+              <p className="font-extrabold text-sm text-slate-900 dark:text-white">{dashboardPlan.planName}</p>
             </div>
 
             <div
@@ -151,10 +180,10 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
             >
               <div className="flex justify-between items-center text-teal-600 dark:text-teal-400">
                 <FileText className="w-5 h-5" />
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950">1 IN REVIEW</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950">{inReviewClaims} IN REVIEW</span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">Recent Claims</p>
-              <p className="font-extrabold text-sm text-slate-900 dark:text-white">$1,100.00 Approved</p>
+              <p className="font-extrabold text-sm text-slate-900 dark:text-white">${approvedAmount.toFixed(2)} Approved</p>
             </div>
 
             <div
@@ -163,10 +192,10 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
             >
               <div className="flex justify-between items-center text-indigo-600 dark:text-indigo-400">
                 <Pill className="w-5 h-5" />
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950">2 ACTIVE RX</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950">{activeRx} ACTIVE RX</span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">Prescriptions</p>
-              <p className="font-extrabold text-sm text-slate-900 dark:text-white">Lisinopril 10mg</p>
+              <p className="font-extrabold text-sm text-slate-900 dark:text-white">{nextRx?.medicationName ?? 'No active Rx'}</p>
             </div>
 
             <div
@@ -175,10 +204,10 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
             >
               <div className="flex justify-between items-center text-amber-600 dark:text-amber-400">
                 <DollarSign className="w-5 h-5" />
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950">DUE $70.00</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950">DUE ${outstandingCopay.toFixed(2)}</span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">Outstanding Copay</p>
-              <p className="font-extrabold text-sm text-slate-900 dark:text-white">Pay via HSA Card</p>
+              <p className="font-extrabold text-sm text-slate-900 dark:text-white">Demo payment workflow</p>
             </div>
 
           </div>
@@ -246,7 +275,12 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
       {activeTab === 'billing' && <BillPayment />}
 
       {/* Digital ID Card Modal */}
-      <InsuranceCardModal isOpen={showIdCardModal} onClose={() => setShowIdCardModal(false)} />
+      <InsuranceCardModal
+        isOpen={showIdCardModal}
+        onClose={() => setShowIdCardModal(false)}
+        patient={dashboardPatient}
+        plan={dashboardPlan}
+      />
 
     </div>
   );
