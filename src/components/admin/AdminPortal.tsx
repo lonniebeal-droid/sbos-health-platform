@@ -5,6 +5,7 @@ import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories, mapAuditLog } from '../../lib/repositories';
 import { useAsync } from '../../lib/hooks/useAsync';
 import type { AuditLog } from '../../types';
+import { useOrg } from '../../lib/organizationContext';
 
 interface AdminPortalProps {
   activeTenantId?: string;
@@ -16,6 +17,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onSelectTenant = () => {}
 }) => {
   const [activeTab, setActiveTab] = useState<'tenants' | 'audit' | 'system'>('tenants');
+  const orgs = useOrg();
 
   const fallbackAuditLogs: AuditLog[] = [
     {
@@ -152,6 +154,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         <TenantManagement
           activeTenantId={activeTenantId}
           onSelectTenant={onSelectTenant}
+          liveOrganizations={orgs.allOrgs}
+          organizationSource={orgs.source}
+          organizationLoading={orgs.loading}
+          organizationError={orgs.error}
         />
       )}
 

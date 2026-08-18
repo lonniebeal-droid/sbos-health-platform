@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { TenantOrganization, TenantType } from '../../types';
 import { mockTenants } from '../../data/mockTenants';
+import type { OrgDataSource, TenantOrg } from '../../lib/organizationContext';
 import { 
   Building2, 
-  ShieldCheck, 
   Palette, 
   Globe, 
   DollarSign, 
@@ -14,10 +14,11 @@ import {
   Sparkles, 
   Edit3, 
   Lock, 
-  Key, 
   Check, 
   Download,
   Sliders,
+  Database,
+  FlaskConical,
   ToggleLeft,
   ToggleRight
 } from 'lucide-react';
@@ -26,16 +27,73 @@ interface TenantManagementProps {
   activeTenantId: string;
   onSelectTenant: (tenantId: string) => void;
   onUpdateTenant?: (updatedTenant: TenantOrganization) => void;
+  liveOrganizations?: TenantOrg[];
+  organizationSource?: OrgDataSource;
+  organizationLoading?: boolean;
+  organizationError?: string | null;
+}
+
+function toTenantType(type: TenantOrg['type']): TenantType {
+  if (type === 'payer') return 'health_plan';
+  return type;
+}
+
+function tenantFromOrg(org: TenantOrg): TenantOrganization {
+  const slug = org.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || org.id;
+  return {
+    id: org.id,
+    name: org.name,
+    subdomain: `${slug}.sbos.health`,
+    customDomain: `portal.${slug}.org`,
+    tenantType: toTenantType(org.type),
+    primaryColor: 'from-blue-600 to-indigo-600',
+    accentColor: '#2563eb',
+    logoIconName: 'Building2',
+    billing: {
+      planTier: org.type === 'payer' ? 'Payer Suite' : 'Enterprise SaaS',
+      monthlyRate: org.type === 'payer' ? 95000 : 35000,
+      activeEnrollees: 0,
+      renewalDate: 'Not configured',
+      status: 'trial',
+    },
+    permissions: {
+      telehealthEnabled: true,
+      rcmEdiEnabled: org.type !== 'employer_group',
+      priorAuthAiEnabled: org.type !== 'employer_group',
+      behavioralHealthEnabled: true,
+      employerPortalEnabled: org.type === 'employer_group',
+      mfaEnforced: true,
+    },
+    branding: {
+      portalTitle: `${org.name} Care Portal`,
+      tagline: org.badge,
+      supportEmail: 'support@sbos.health',
+      supportPhone: '+1 (800) 555-0199',
+      brandThemeColor: 'blue',
+    },
+    usersCount: 0,
+  };
 }
 
 export const TenantManagement: React.FC<TenantManagementProps> = ({
   activeTenantId,
   onSelectTenant,
-  onUpdateTenant
+  onUpdateTenant,
+  liveOrganizations = [],
+  organizationSource = 'fallback',
+  organizationLoading = false,
+  organizationError = null,
 }) => {
-  const [tenants, setTenants] = useState<TenantOrganization[]>(mockTenants);
+  const sourceTenants = useMemo(
+    () => organizationSource === 'supabase'
+      ? liveOrganizations.map(tenantFromOrg)
+      : mockTenants,
+    [liveOrganizations, organizationSource],
+  );
+
+  const [tenants, setTenants] = useState<TenantOrganization[]>(sourceTenants);
   const [selectedTenant, setSelectedTenant] = useState<TenantOrganization>(
-    mockTenants.find((t) => t.id === activeTenantId) || mockTenants[0]
+    sourceTenants.find((t) => t.id === activeTenantId) || sourceTenants[0]
   );
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<TenantOrganization>(selectedTenant);
@@ -47,6 +105,14 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({
   const [newCustomDomain, setNewCustomDomain] = useState('');
   const [newType, setNewType] = useState<TenantType>('health_system');
   const [newPlanTier, setNewPlanTier] = useState<'Enterprise SaaS' | 'Payer Suite' | 'Health System Custom'>('Enterprise SaaS');
+  const usingLiveOrganizations = organizationSource === 'supabase';
+
+  useEffect(() => {
+    setTenants(sourceTenants);
+    const nextSelected = sourceTenants.find((t) => t.id === activeTenantId) || sourceTenants[0];
+    setSelectedTenant(nextSelected);
+    setEditForm(nextSelected);
+  }, [activeTenantId, sourceTenants]);
 
   const handleSelect = (tenant: TenantOrganization) => {
     setSelectedTenant(tenant);
@@ -128,15 +194,30 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({
       {/* Top Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white shadow-xl border border-slate-800">
         <div>
-          <div className="flex items-center gap-2 text-teal-400">
+          <div className="flex items-center gap-2 text-teal-400 flex-wrap">
             <Building2 className="w-5 h-5" />
             <span className="text-xs font-mono font-bold uppercase tracking-wider">
               SBOS HealthOS White-Label Engine
             </span>
+            <span
+              title={usingLiveOrganizations ? 'Loaded from Supabase organizations' : 'Demo tenant fallback'}
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                usingLiveOrganizations
+                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                  : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
+              }`}
+            >
+              {usingLiveOrganizations ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {usingLiveOrganizations ? 'Live organizations' : 'Demo organizations'}
+            </span>
           </div>
           <h2 className="text-xl font-black mt-1">Multi-Tenant Healthcare Organizations & Branding</h2>
           <p className="text-xs text-blue-200 mt-0.5">
-            SBOS HealthOS powers unlimited healthcare systems, health plans, behavioral health clinics, employers, and hospitals with isolated data & dynamic white-label branding.
+            {organizationLoading
+              ? 'Loading tenant organizations...'
+              : organizationError
+                ? `Could not load live organizations (${organizationError}); showing demo data.`
+                : 'SBOS HealthOS powers healthcare systems, health plans, behavioral health clinics, employers, and hospitals with isolated data and dynamic white-label branding.'}
           </p>
         </div>
 
