@@ -58,7 +58,7 @@ Live/Demo indicator.
 `patient/ProviderSearch`, `patient/TelehealthRoom`, `patient/InsuranceCardModal`,
 `patient/BillPayment`, `insurance/InsuranceClaimsCenter`, `insurance/InsuranceHub`,
 `employer/EmployerPortal`, `admin/AdminPortal`, `admin/TenantManagement`,
-`common/Header` (tenant dropdown), `provider/ClinicalDocumentation`,
+`provider/ClinicalDocumentation`,
 `provider/AIClinicalAssistant`, `rcm/ElectronicPrescribing`, `rcm/PriorAuthEngine`,
 `rcm/EligibilityVerifier`, `rcm/LabIntegrationHub`. (Patient self-profile fields
 in `PatientDashboard` header still use `samplePatient`.)

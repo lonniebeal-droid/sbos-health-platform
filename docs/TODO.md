@@ -30,7 +30,7 @@ Grouped by priority. Authoritative task list; keep in sync with `TECH_DEBT.md`.
 - ⬜ Prior auth (`rcm/PriorAuthEngine`)
 - ⬜ Admin tenant management + audit log view (`admin/*`)
 - ⬜ Employer portal (`employer/EmployerPortal`)
-- ⬜ Header tenant switcher → real org context (drop `mockTenants`)
+- ✅ Header tenant switcher → real org context (uses `OrgProvider`; demo fallback remains when Supabase is unavailable)
 
 ### Backend cleanup
 - ⬜ Remove/replace fake `server.ts` endpoints (auth/login, tenants, appointments,
