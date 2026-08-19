@@ -96,6 +96,24 @@ describe('repositories', () => {
     expect(seenOps).toContainEqual(['single']);
     expect(row.id).toBe('pa1');
   });
+
+  it('priorAuths.updateStatus persists adjudication decisions', async () => {
+    let seenTable = '';
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((table, ops) => {
+      seenTable = table; seenOps = ops;
+      return { data: { id: 'pa1', status: 'approved' }, error: null };
+    }));
+
+    const row = await repos.priorAuths.updateStatus('pa1', 'approved');
+
+    expect(seenTable).toBe('prior_authorizations');
+    expect(seenOps).toContainEqual(['update', { status: 'approved' }]);
+    expect(seenOps).toContainEqual(['eq', 'id', 'pa1']);
+    expect(seenOps).toContainEqual(['select']);
+    expect(seenOps).toContainEqual(['single']);
+    expect(row.status).toBe('approved');
+  });
 });
 
 describe('organizationService', () => {
