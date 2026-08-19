@@ -79,7 +79,7 @@ export const AIAssistantWidget: React.FC<AIAssistantWidgetProps> = ({
       const fallbackMsg: ChatMessage = {
         id: `ai_${Date.now()}`,
         sender: 'jessie',
-        text: `I am currently operating in offline mode. For your SBOS Gold Premier PPO plan, your primary care copay is $20 and in-network deductible met is $1,250 / $1,500.`,
+        text: `I am currently operating in offline demo mode. I can explain the workflow, but exact benefits, copays, deductibles, and prior authorization rules must be verified against a live payer or benefits source before care is scheduled.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, fallbackMsg]);

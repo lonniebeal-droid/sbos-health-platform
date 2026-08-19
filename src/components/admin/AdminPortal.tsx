@@ -186,7 +186,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <Lock className="w-4 h-4 text-teal-500" />
               Immutable System Access & Access Audit Ledger
             </h3>
-            <span className="text-xs font-mono text-slate-400">SOC2 Type II Compliant</span>
+            <span className="text-xs font-mono text-slate-400">SOC2 readiness not verified</span>
           </div>
 
           <div className="overflow-x-auto">
