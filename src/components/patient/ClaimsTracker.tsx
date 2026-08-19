@@ -202,10 +202,10 @@ export const ClaimsTracker: React.FC = () => {
               {/* Download EOB Button */}
               <div className="pt-2 flex justify-end">
                 <button
-                  onClick={() => alert(`Downloading Official EOB PDF for Claim ${selectedClaim.claimNumber}...`)}
+                  onClick={() => alert(`Demo EOB export for Claim ${selectedClaim.claimNumber}. PDF generation is not configured yet.`)}
                   className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-semibold shadow-sm transition-colors"
                 >
-                  Download EOB PDF Statement
+                  Demo EOB Export
                 </button>
               </div>
 
