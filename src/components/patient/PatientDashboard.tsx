@@ -38,6 +38,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
   const [activeTab, setActiveTab] = useState<'overview' | 'claims' | 'benefits' | 'providers' | 'prescriptions' | 'records' | 'billing'>('overview');
   const [showIdCardModal, setShowIdCardModal] = useState(false);
   const [isTelehealthActive, setIsTelehealthActive] = useState(false);
+  const [activeTelehealthAppointment, setActiveTelehealthAppointment] = useState<Appointment | null>(null);
   // Locally-booked appointments (this session) layered on top of loaded data.
   const [localAppts, setLocalAppts] = useState<Appointment[]>([]);
   const { data: realAppts } = useAsync<Appointment[]>(
@@ -83,6 +84,16 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
     setLocalAppts((prev) => [apt, ...prev]);
   };
 
+  const launchTelehealth = (appointment: Appointment | null = null) => {
+    setActiveTelehealthAppointment(appointment);
+    setIsTelehealthActive(true);
+  };
+
+  const leaveTelehealth = () => {
+    setIsTelehealthActive(false);
+    setActiveTelehealthAppointment(null);
+  };
+
   const navItems = [
     { id: 'overview', label: 'Patient Home', icon: <Activity className="w-4 h-4" /> },
     { id: 'claims', label: 'Claims Tracker', icon: <FileText className="w-4 h-4" /> },
@@ -96,7 +107,11 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
   if (isTelehealthActive) {
     return (
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
-        <TelehealthRoom onLeaveCall={() => setIsTelehealthActive(false)} />
+        <TelehealthRoom
+          onLeaveCall={leaveTelehealth}
+          patient={dashboardPatient}
+          appointment={activeTelehealthAppointment}
+        />
       </div>
     );
   }
@@ -248,7 +263,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
                   </div>
 
                   <button
-                    onClick={() => setIsTelehealthActive(true)}
+                    onClick={() => launchTelehealth(apt)}
                     className="w-full py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition-transform active:scale-95"
                   >
                     <Video className="w-4 h-4" />
@@ -267,7 +282,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
       {activeTab === 'providers' && (
         <ProviderSearch
           onBookAppointment={handleBookAppointment}
-          onLaunchTelehealth={() => setIsTelehealthActive(true)}
+          onLaunchTelehealth={() => launchTelehealth()}
         />
       )}
       {activeTab === 'prescriptions' && <PrescriptionsView />}

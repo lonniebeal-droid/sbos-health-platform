@@ -1,21 +1,25 @@
 import React, { useState } from 'react';
-import { Video, Mic, MicOff, VideoOff, PhoneOff, MessageSquare, Shield, Activity, Sparkles, User, Settings, AlertCircle } from 'lucide-react';
+import { Video, Mic, MicOff, VideoOff, PhoneOff, MessageSquare, Shield, Activity, Sparkles } from 'lucide-react';
 import { samplePatient, sampleProviders } from '../../data/mockData';
+import { Appointment, Patient } from '../../types';
 
 interface TelehealthRoomProps {
   onLeaveCall: () => void;
+  patient?: Patient;
+  appointment?: Appointment | null;
 }
 
-export const TelehealthRoom: React.FC<TelehealthRoomProps> = ({ onLeaveCall }) => {
+export const TelehealthRoom: React.FC<TelehealthRoomProps> = ({ onLeaveCall, patient = samplePatient, appointment = null }) => {
+  const fallbackDoctor = sampleProviders[0];
+  const providerName = appointment?.providerName ?? fallbackDoctor.name;
+  const providerSpecialty = appointment?.providerSpecialty ?? fallbackDoctor.specialty;
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isMicOn, setIsMicOn] = useState(true);
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState([
-    { sender: 'Dr. James Wilson', text: 'Hello Sarah! I am reviewing your blood pressure logs now.', time: '10:01 AM' }
+    { sender: providerName, text: `Hello ${patient.name.split(' ')[0]}! I am reviewing your vitals and visit summary now.`, time: '10:01 AM' }
   ]);
-
-  const activeDoctor = sampleProviders[0];
 
   const handleSendMessage = () => {
     if (!chatInput.trim()) return;
@@ -28,7 +32,7 @@ export const TelehealthRoom: React.FC<TelehealthRoomProps> = ({ onLeaveCall }) =
     setTimeout(() => {
       setChatMessages((prev) => [
         ...prev,
-        { sender: 'Dr. James Wilson', text: 'Thank you. Your vitals look stable today.', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+        { sender: providerName, text: 'Thank you. Your vitals look stable today.', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
       ]);
     }, 2000);
   };
@@ -48,7 +52,7 @@ export const TelehealthRoom: React.FC<TelehealthRoomProps> = ({ onLeaveCall }) =
               </span>
             </h3>
             <p className="text-[11px] text-slate-400">
-              Provider: {activeDoctor.name} ({activeDoctor.specialty})
+              Provider: {providerName} ({providerSpecialty})
             </p>
           </div>
         </div>
@@ -85,7 +89,7 @@ export const TelehealthRoom: React.FC<TelehealthRoomProps> = ({ onLeaveCall }) =
             {/* Doctor Name Overlay */}
             <div className="absolute bottom-4 left-4 px-3 py-1.5 rounded-xl bg-slate-900/80 backdrop-blur-md border border-slate-700 text-xs font-bold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              {activeDoctor.name}
+              {providerName}
             </div>
 
             {/* Live AI Clinical Speech Transcript Overlay */}
@@ -95,7 +99,7 @@ export const TelehealthRoom: React.FC<TelehealthRoomProps> = ({ onLeaveCall }) =
                 Live AI Speech Transcription & Vitals Sync
               </div>
               <p className="text-[11px] font-medium text-slate-200">
-                "Sarah, your blood pressure reading of 118/76 is excellent. We will continue Lisinopril 10mg."
+                "{patient.name.split(' ')[0]}, your blood pressure reading of {patient.recentVitals.bloodPressure} is ready for review. We will confirm the plan before the visit ends."
               </p>
             </div>
 
@@ -113,7 +117,7 @@ export const TelehealthRoom: React.FC<TelehealthRoomProps> = ({ onLeaveCall }) =
                 </div>
               )}
               <span className="absolute bottom-1 left-2 text-[9px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded">
-                You (Sarah)
+                You ({patient.name.split(' ')[0]})
               </span>
             </div>
 
@@ -135,11 +139,12 @@ export const TelehealthRoom: React.FC<TelehealthRoomProps> = ({ onLeaveCall }) =
               <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700 space-y-1.5 text-[11px]">
                 <div className="flex justify-between font-bold text-teal-300">
                   <span className="flex items-center gap-1"><Activity className="w-3.5 h-3.5" /> Demo Vitals</span>
-                  <span>Sample</span>
+                  <span>{appointment ? 'Visit context' : 'Sample'}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-slate-300 pt-1">
-                  <div>BP: <span className="font-mono font-bold text-white">{samplePatient.recentVitals.bloodPressure}</span></div>
-                  <div>HR: <span className="font-mono font-bold text-white">{samplePatient.recentVitals.heartRate} bpm</span></div>
+                  <div>BP: <span className="font-mono font-bold text-white">{patient.recentVitals.bloodPressure}</span></div>
+                  <div>HR: <span className="font-mono font-bold text-white">{patient.recentVitals.heartRate} bpm</span></div>
+                  {appointment && <div className="col-span-2">Visit: <span className="font-mono font-bold text-white">{appointment.date} {appointment.time}</span></div>}
                 </div>
               </div>
 
