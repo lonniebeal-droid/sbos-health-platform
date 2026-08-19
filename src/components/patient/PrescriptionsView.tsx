@@ -69,7 +69,7 @@ export const PrescriptionsView: React.FC = () => {
               ? 'Loading prescriptions...'
               : error
                 ? `Could not load live prescriptions (${error}); showing demo data.`
-                : 'Manage active Rx medications, track remaining refills, and route electronic orders through configured pharmacy workflows.'}
+                : 'Manage active Rx medications and track remaining refills. Live pharmacy routing is not configured yet.'}
           </p>
         </div>
       </div>

@@ -48,7 +48,7 @@ export const EmployerPortal: React.FC = () => {
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Employer Health Plan & Census Portal</h1>
           <p className="text-xs text-blue-200">
-            Manage employee health benefit enrollment, automated census syncs, and AI cost optimization.
+            Review demo employee health benefit enrollment, census imports, and AI cost optimization.
           </p>
         </div>
 
@@ -90,10 +90,10 @@ export const EmployerPortal: React.FC = () => {
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-sm text-slate-900 dark:text-white">Active Group Census Roster</h3>
             <button
-              onClick={() => alert('Opening EDI 834 Automated Census Upload...')}
+              onClick={() => alert('Demo EDI 834 census import is not connected to a live carrier feed yet.')}
               className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-2 shadow-sm"
             >
-              <UserPlus className="w-4 h-4" /> Add Employee or Import EDI 834
+              <UserPlus className="w-4 h-4" /> Add Employee or Demo EDI 834 Import
             </button>
           </div>
 
