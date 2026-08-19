@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { samplePrescriptions, samplePatient } from '../../data/mockData';
 import { Prescription } from '../../types';
-import { Pill, CheckCircle2, AlertTriangle, Send, ShieldCheck, MapPin, FlaskConical } from 'lucide-react';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapPrescription, mapPatient } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
+import { Pill, CheckCircle2, AlertTriangle, Send, ShieldCheck, MapPin, FlaskConical, Database } from 'lucide-react';
 
 export const ElectronicPrescribing: React.FC = () => {
-  const [prescriptions, setPrescriptions] = useState<Prescription[]>(samplePrescriptions);
+  const [localPrescriptions, setLocalPrescriptions] = useState<Prescription[]>([]);
   const [medName, setMedName] = useState('Amoxicillin 500mg');
   const [dosage, setDosage] = useState('500mg Oral Capsule');
   const [frequency, setFrequency] = useState('Take 1 capsule every 8 hours for 10 days');
@@ -12,21 +16,35 @@ export const ElectronicPrescribing: React.FC = () => {
   const [allergyAlert, setAllergyAlert] = useState<string | null>(null);
   const [isSent, setIsSent] = useState(false);
 
+  const { data: realPrescriptions, loading, error } = useAsync<Prescription[]>(
+    async () => (await getRepositories().prescriptions.listDetailed()).map(mapPrescription),
+    isSupabaseConfigured,
+  );
+  const { data: realPatients } = useAsync(
+    async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
+    isSupabaseConfigured,
+  );
+  const usingLive = isSupabaseConfigured && !!realPrescriptions && realPrescriptions.length > 0;
+  const activePatient = isSupabaseConfigured && realPatients && realPatients.length > 0
+    ? realPatients[0]
+    : samplePatient;
+  const prescriptions = [...localPrescriptions, ...(usingLive ? realPrescriptions : samplePrescriptions)];
+
   const handleCheckAllergiesAndPrescribe = () => {
     // Check patient allergies (e.g., Sulfa, Penicillin)
-    const patientAllergies = samplePatient.allergies.map(a => a.toLowerCase());
+    const patientAllergies = activePatient.allergies.map(a => a.toLowerCase());
     const isPenicillinDrug = medName.toLowerCase().includes('amox') || medName.toLowerCase().includes('penic');
 
     if (patientAllergies.includes('penicillin') && isPenicillinDrug) {
-      setAllergyAlert(`CRITICAL ALLERGY ALERT: Patient ${samplePatient.name} has a documented severe Penicillin allergy! Prescribing ${medName} is contraindicated.`);
+      setAllergyAlert(`CRITICAL ALLERGY ALERT: Patient ${activePatient.name} has a documented severe Penicillin allergy! Prescribing ${medName} is contraindicated.`);
       return;
     }
 
     setAllergyAlert(null);
     const newRx: Prescription = {
       id: `rx_${Date.now()}`,
-      patientId: samplePatient.id,
-      patientName: samplePatient.name,
+      patientId: activePatient.id,
+      patientName: activePatient.name,
       medicationName: medName,
       dosage,
       frequency,
@@ -36,7 +54,7 @@ export const ElectronicPrescribing: React.FC = () => {
       status: 'active'
     };
 
-    setPrescriptions((prev) => [newRx, ...prev]);
+    setLocalPrescriptions((prev) => [newRx, ...prev]);
     setIsSent(true);
     setTimeout(() => setIsSent(false), 4000);
   };
@@ -49,17 +67,27 @@ export const ElectronicPrescribing: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <Pill className="w-5 h-5 text-teal-400" />
-            <h2 className="font-bold text-lg">Demo Electronic Prescribing (e-Rx) Hub</h2>
+            <h2 className="font-bold text-lg">Electronic Prescribing Review Hub</h2>
             <span
-              title="Demo workflow — no Surescripts connection is configured in this app yet"
-              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-100 border border-amber-400/30"
+              title={usingLive ? 'Loaded from Supabase prescriptions; new e-Rx transmission remains demo-only' : 'Demo workflow — no Surescripts connection is configured in this app yet'}
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                usingLive
+                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                  : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
+              }`}
             >
-              <FlaskConical className="w-3 h-3" />
-              Demo e-Rx
+              {usingLive ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {usingLive ? 'Live prescriptions' : 'Demo e-Rx'}
             </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
-            Demo prescribing workflow with local allergy checks. A real e-prescribing network connection is still required before live prescription transmission.
+            {loading
+              ? 'Loading prescriptions...'
+              : error
+                ? `Could not load live prescriptions (${error}); showing demo data.`
+                : usingLive
+                  ? 'Review live prescriptions with local allergy checks. A real e-prescribing network connection is still required before live prescription transmission.'
+                  : 'Demo prescribing workflow with local allergy checks. A real e-prescribing network connection is still required before live prescription transmission.'}
           </p>
         </div>
       </div>
@@ -70,7 +98,7 @@ export const ElectronicPrescribing: React.FC = () => {
         <div className="lg:col-span-5 space-y-4 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md">
           <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
             <Send className="w-4 h-4 text-blue-500" />
-            Create Demo Medication Order for {samplePatient.name}
+            Create Demo Medication Order for {activePatient.name}
           </h3>
 
           <div className="space-y-3 text-xs">
@@ -156,7 +184,7 @@ export const ElectronicPrescribing: React.FC = () => {
                     <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">{rx.dosage}</p>
                   </div>
                   <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                    Demo Rx
+                    {localPrescriptions.some((local) => local.id === rx.id) ? 'Demo Rx' : usingLive ? 'Live Rx' : 'Demo Rx'}
                   </span>
                 </div>
 

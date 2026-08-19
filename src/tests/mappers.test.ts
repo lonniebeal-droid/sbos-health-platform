@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapLabResult, mapBenefitsPlan } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, LabResultRow, BenefitsPlanRow } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapLabResult, mapBenefitsPlan, mapPrescription } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, LabResultRow, BenefitsPlanRow, PrescriptionWithProvider } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -122,6 +122,43 @@ describe('mapAppointment', () => {
 
   it('maps non-telehealth types to in_person', () => {
     expect(mapAppointment({ ...row, appointment_type: 'specialist' }).type).toBe('in_person');
+  });
+});
+
+describe('mapPrescription', () => {
+  const row: PrescriptionWithProvider = {
+    id: 'rx-1',
+    patient_id: 'pat-1',
+    provider_id: 'prov-1',
+    organization_id: 'org-1',
+    medication_name: 'Atorvastatin',
+    dosage: '20mg tablet',
+    frequency: 'Take 1 tablet nightly',
+    refills_remaining: 2,
+    pharmacy_name: 'Mission Pharmacy',
+    status: 'active',
+    created_at: '2026-07-22T00:00:00Z',
+    provider: { user: { full_name: 'Dr. James Wilson' } },
+  };
+
+  it('maps live prescriptions with provider and pharmacy details', () => {
+    const rx = mapPrescription(row);
+    expect(rx).toMatchObject({
+      id: 'rx-1',
+      patientId: 'pat-1',
+      medicationName: 'Atorvastatin',
+      dosage: '20mg tablet',
+      frequency: 'Take 1 tablet nightly',
+      prescribedBy: 'Dr. James Wilson',
+      refillsRemaining: 2,
+      pharmacyName: 'Mission Pharmacy',
+      status: 'active',
+    });
+  });
+
+  it('collapses expired and discontinued rows to completed in the UI', () => {
+    expect(mapPrescription({ ...row, status: 'expired' }).status).toBe('completed');
+    expect(mapPrescription({ ...row, status: 'discontinued' }).status).toBe('completed');
   });
 });
 
