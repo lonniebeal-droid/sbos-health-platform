@@ -124,7 +124,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
         <div className="flex gap-3 text-xs">
           <div className="px-4 py-2 rounded-2xl bg-slate-900/80 border border-slate-700 text-right">
-            <span className="text-slate-400 text-[10px] uppercase font-bold block">HIPAA Compliance Status</span>
+            <span className="text-slate-400 text-[10px] uppercase font-bold block">HIPAA Readiness Status</span>
             <span className="font-mono font-extrabold text-teal-400 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" /> Controls In Progress
             </span>
