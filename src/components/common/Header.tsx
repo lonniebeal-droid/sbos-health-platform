@@ -5,6 +5,7 @@ import {
 } from '../../types';
 import { mockUsers } from '../../data/mockData';
 import { mockTenants } from '../../data/mockTenants';
+import type { TenantOrg, OrgDataSource } from '../../lib/organizationContext';
 import { 
   ShieldCheck, 
   Bell, 
@@ -35,6 +36,8 @@ interface HeaderProps {
   // data (dev mode without Supabase). onSignOut renders a sign-out control.
   userName?: string;
   userOrg?: string;
+  organizations?: TenantOrg[];
+  organizationSource?: OrgDataSource;
   onSignOut?: () => void;
 }
 
@@ -48,6 +51,8 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectTenant = (_tenantId: string) => {},
   userName,
   userOrg,
+  organizations,
+  organizationSource = 'fallback',
   onSignOut
 }) => {
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
@@ -56,7 +61,15 @@ export const Header: React.FC<HeaderProps> = ({
   const currentUser: UserProfile = mockUsers[activeRole];
   const displayName = userName ?? currentUser.name;
   const displayOrg = userOrg ?? currentUser.organization;
-  const currentTenant = mockTenants.find((t) => t.id === activeTenantId) || mockTenants[0];
+  const tenantOptions = organizations?.length
+    ? organizations.map((org) => ({
+      id: org.id,
+      name: org.name,
+      tenantType: org.type,
+    }))
+    : mockTenants;
+  const currentTenant = tenantOptions.find((t) => t.id === activeTenantId) || tenantOptions[0];
+  const usingLiveOrganizations = organizationSource === 'supabase';
 
   const roleConfigs: { role: Role; label: string; icon: React.ReactNode; color: string }[] = [
     { role: 'patient', label: 'Patient App', icon: <User className="w-4 h-4" />, color: 'bg-emerald-500' },
@@ -98,16 +111,16 @@ export const Header: React.FC<HeaderProps> = ({
               className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 transition-all"
             >
               <Building2 className="w-3.5 h-3.5 text-blue-500" />
-              <span>Org: <strong className="text-blue-600 dark:text-blue-400">{currentTenant.name}</strong></span>
+              <span>{usingLiveOrganizations ? 'Org' : 'Demo org'}: <strong className="text-blue-600 dark:text-blue-400">{currentTenant.name}</strong></span>
               <ChevronDown className="w-3 h-3 text-slate-400" />
             </button>
 
             {showTenantDropdown && (
               <div className="absolute top-full left-0 mt-2 w-64 p-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 space-y-1">
                 <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                  Select Active Enterprise Tenant
+                  {usingLiveOrganizations ? 'Select Active Enterprise Tenant' : 'Select Demo Enterprise Tenant'}
                 </div>
-                {mockTenants.map((tenant) => (
+                {tenantOptions.map((tenant) => (
                   <button
                     key={tenant.id}
                     onClick={() => {

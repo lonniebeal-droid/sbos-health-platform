@@ -14,7 +14,7 @@ import { LoginScreen } from './components/auth/LoginScreen';
 
 function AppShell() {
   const auth = useAuth();
-  const { allOrgs } = useOrg();
+  const { allOrgs, source: organizationSource } = useOrg();
   const [currentRole, setCurrentRole] = useState<UserRole>('patient');
   const [activeTenantId, setActiveTenantId] = useState<string>('tnt_001');
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -65,6 +65,8 @@ function AppShell() {
         onSelectTenant={setActiveTenantId}
         userName={auth.profile?.full_name}
         userOrg={orgName}
+        organizations={allOrgs}
+        organizationSource={organizationSource}
         onSignOut={auth.configured ? auth.signOut : undefined}
       />
 
