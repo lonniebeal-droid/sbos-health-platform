@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapBenefitsPlan } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapLabResult, mapBenefitsPlan } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, LabResultRow, BenefitsPlanRow } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -213,6 +213,36 @@ describe('mapMedicalRecord', () => {
     expect(r.date).toBe('2026-07-15');
     expect(r.status).toBe('normal');
     expect(r.fileUrl).toBeUndefined();
+  });
+});
+
+describe('mapLabResult', () => {
+  const row: LabResultRow = {
+    id: 'lab-result-1',
+    patient_id: 'pat-1',
+    ordering_provider_id: 'prov-1',
+    organization_id: 'org-1',
+    loinc_code: '4548-4',
+    test_name: 'Hemoglobin A1c',
+    result_value: '5.4%',
+    reference_range: '4.0-5.6%',
+    status: 'completed',
+    result_date: '2026-07-20',
+  };
+
+  it('maps live lab results to the lab workflow display model', () => {
+    const lab = mapLabResult(row);
+    expect(lab).toMatchObject({
+      id: 'lab-result-1',
+      testName: 'Hemoglobin A1c',
+      loinc: '4548-4',
+      facility: 'Connected lab result',
+      status: 'completed',
+      date: '2026-07-20',
+      source: 'live',
+    });
+    expect(lab.result).toContain('5.4%');
+    expect(lab.result).toContain('Reference range: 4.0-5.6%');
   });
 });
 

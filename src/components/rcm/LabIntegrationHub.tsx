@@ -1,44 +1,59 @@
 import React, { useState } from 'react';
-import { sampleMedicalRecords, samplePatient } from '../../data/mockData';
-import { Activity, TestTube, CheckCircle2, Download, FileText, Send, Clock, Sparkles } from 'lucide-react';
+import { samplePatient } from '../../data/mockData';
+import { TestTube, Send, Database, FlaskConical } from 'lucide-react';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapLabResult, type LabOrderDisplay } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
+
+const demoLabOrders: LabOrderDisplay[] = [
+  {
+    id: 'lab_101',
+    testName: 'Comprehensive Metabolic Panel (CMP) & HbA1c',
+    loinc: '24323-8 / 4548-4',
+    facility: 'Demo Reference Lab',
+    status: 'completed',
+    date: '2026-07-20',
+    result: 'HbA1c 5.4% (Normal), Serum Glucose 92 mg/dL',
+    source: 'demo',
+  },
+  {
+    id: 'lab_102',
+    testName: 'Lipid Panel with Cardiac Risk Stratification',
+    loinc: '57698-3',
+    facility: 'Demo Collection Site',
+    status: 'pending_specimen',
+    date: '2026-07-24',
+    result: 'Awaiting phlebotomy collection at draw site',
+    source: 'demo',
+  },
+];
 
 export const LabIntegrationHub: React.FC = () => {
-  const [labOrders, setLabOrders] = useState([
-    {
-      id: 'lab_101',
-      testName: 'Comprehensive Metabolic Panel (CMP) & HbA1c',
-      loinc: '24323-8 / 4548-4',
-      facility: 'Demo Reference Lab',
-      status: 'completed',
-      date: '2026-07-20',
-      result: 'HbA1c 5.4% (Normal), Serum Glucose 92 mg/dL'
-    },
-    {
-      id: 'lab_102',
-      testName: 'Lipid Panel with Cardiac Risk Stratification',
-      loinc: '57698-3',
-      facility: 'Demo Collection Site',
-      status: 'pending_specimen',
-      date: '2026-07-24',
-      result: 'Awaiting phlebotomy collection at draw site'
-    }
-  ]);
-
+  const [localLabOrders, setLocalLabOrders] = useState<LabOrderDisplay[]>([]);
   const [newTest, setNewTest] = useState('Thyroid Stimulating Hormone (TSH) w/ Reflex T4');
   const [loincCode, setLoincCode] = useState('11580-8');
 
+  const { data: realLabResults, loading, error } = useAsync<LabOrderDisplay[]>(
+    async () => (await getRepositories().labResults.list()).map(mapLabResult),
+    isSupabaseConfigured,
+  );
+  const usingLive = isSupabaseConfigured && !!realLabResults && realLabResults.length > 0;
+  const labOrders = [...localLabOrders, ...(usingLive ? realLabResults : demoLabOrders)];
+
   const handleOrderLab = () => {
-    const newOrder = {
+    const newOrder: LabOrderDisplay = {
       id: `lab_${Date.now()}`,
       testName: newTest,
       loinc: loincCode,
       facility: 'Demo Lab Queue',
       status: 'pending_specimen',
       date: new Date().toISOString().split('T')[0],
-      result: 'Demo order queued. External lab transmission is not configured.'
+      result: 'Demo order queued. External lab transmission is not configured.',
+      source: 'demo',
     };
 
-    setLabOrders((prev) => [newOrder, ...prev]);
+    setLocalLabOrders((prev) => [newOrder, ...prev]);
   };
 
   return (
@@ -47,13 +62,28 @@ export const LabIntegrationHub: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <TestTube className="w-5 h-5 text-teal-400" />
-            <h2 className="font-bold text-lg">Demo Laboratory Workflow Hub</h2>
+            <h2 className="font-bold text-lg">Laboratory Results & Demo Order Workflow</h2>
+            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+              usingLive
+                ? 'bg-emerald-400/20 text-emerald-100 border border-emerald-300/40'
+                : 'bg-amber-400/20 text-amber-100 border border-amber-300/40'
+            }`}>
+              {usingLive ? (
+                <span className="inline-flex items-center gap-1"><Database className="w-3 h-3" /> Live lab results</span>
+              ) : (
+                <span className="inline-flex items-center gap-1"><FlaskConical className="w-3 h-3" /> Demo lab data</span>
+              )}
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
-            Review a demo lab-order workflow. Direct Quest/Labcorp and FHIR delivery are not configured yet.
+            {usingLive
+              ? 'Showing lab results from the live database. New external lab orders remain demo-only until Quest/Labcorp or FHIR delivery is configured.'
+              : 'Review a demo lab-order workflow. Direct Quest/Labcorp and FHIR delivery are not configured yet.'}
           </p>
+          {loading && <p className="text-[11px] text-blue-100 mt-1">Checking for live lab results...</p>}
+          {error && <p className="text-[11px] text-amber-100 mt-1">Live lab results unavailable: {error}. Showing demo data.</p>}
         </div>
       </div>
 
@@ -99,7 +129,9 @@ export const LabIntegrationHub: React.FC = () => {
 
         {/* Lab Order Roster */}
         <div className="lg:col-span-7 space-y-4">
-          <h3 className="font-bold text-sm text-slate-900 dark:text-white">Active & Historical Lab Panels</h3>
+          <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+            {usingLive ? 'Live Lab Results' : 'Active & Historical Demo Lab Panels'}
+          </h3>
 
           <div className="space-y-3">
             {labOrders.map((lab) => (
@@ -115,11 +147,11 @@ export const LabIntegrationHub: React.FC = () => {
                   </div>
 
                   <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                    lab.status === 'completed'
+                    lab.status === 'completed' || lab.source === 'live'
                       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                       : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                   }`}>
-                    {lab.status === 'completed' ? 'Demo Result' : 'Pending Specimen'}
+                    {lab.source === 'live' ? 'Live Result' : lab.status === 'completed' ? 'Demo Result' : 'Pending Specimen'}
                   </span>
                 </div>
 

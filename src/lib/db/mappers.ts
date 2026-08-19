@@ -9,7 +9,7 @@
 
 import type { TenantOrg } from '../organizationContext';
 import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser } from './database.types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, LabResultRow } from './database.types';
 
 /** BenefitsPlanRow -> the UI BenefitsPlan domain type. */
 export function mapBenefitsPlan(row: BenefitsPlanRow): BenefitsPlan {
@@ -44,6 +44,32 @@ export function mapMedicalRecord(row: MedicalRecordRow): MedicalRecord {
     summary: row.summary ?? '',
     status: row.status,
     fileUrl: row.file_url ?? undefined,
+  };
+}
+
+export interface LabOrderDisplay {
+  id: string;
+  testName: string;
+  loinc: string;
+  facility: string;
+  status: string;
+  date: string;
+  result: string;
+  source: 'live' | 'demo';
+}
+
+/** LabResultRow -> the lab workflow display model. */
+export function mapLabResult(row: LabResultRow): LabOrderDisplay {
+  const referenceRange = row.reference_range ? ` Reference range: ${row.reference_range}` : '';
+  return {
+    id: row.id,
+    testName: row.test_name,
+    loinc: row.loinc_code,
+    facility: 'Connected lab result',
+    status: row.status,
+    date: row.result_date,
+    result: `${row.result_value}${referenceRange}`,
+    source: 'live',
   };
 }
 
