@@ -1,9 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { sampleBIRPNote, samplePatient } from '../../data/mockData';
-import { BIRPNote } from '../../types';
-import { Mic, MicOff, Sparkles, FileText, CheckCircle2, Save, RefreshCw, AlertCircle, Tag } from 'lucide-react';
+import { BIRPNote, MedicalRecord, Patient } from '../../types';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getRepositories } from '../../lib/repositories';
+import { mapMedicalRecord, mapPatient } from '../../lib/db/mappers';
+import { useAsync } from '../../lib/hooks/useAsync';
+import { Mic, MicOff, Sparkles, CheckCircle2, Save, RefreshCw, AlertCircle, Tag, Database, FlaskConical } from 'lucide-react';
 
 export const ClinicalDocumentation: React.FC = () => {
+  const { data: realPatients, loading: patientsLoading, error: patientsError } = useAsync<Patient[]>(
+    async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
+    isSupabaseConfigured,
+  );
+  const { data: realRecords, loading: recordsLoading, error: recordsError } = useAsync<MedicalRecord[]>(
+    async () => (await getRepositories().medicalRecords.list()).map(mapMedicalRecord),
+    isSupabaseConfigured,
+  );
+
+  const usingLivePatient = isSupabaseConfigured && !!realPatients && realPatients.length > 0;
+  const activePatient = usingLivePatient ? realPatients[0] : samplePatient;
+  const patientRecords = (isSupabaseConfigured && realRecords ? realRecords : []).filter(
+    (record) => record.patientId === activePatient.id,
+  );
+  const latestRecord = patientRecords[0] ?? null;
+  const loading = patientsLoading || recordsLoading;
+  const error = patientsError || recordsError;
+
   const [rawDictation, setRawDictation] = useState(
     'Patient Sarah Jenkins presented for follow-up session. Reported work stress 7/10 and hypertension. Performed 45 min CBT restructuring and diaphragmatic breathing loop. Patient responded well with stress level reduction to 3/10. Continue biweekly sessions and Lisinopril.'
   );
@@ -12,12 +34,21 @@ export const ClinicalDocumentation: React.FC = () => {
   const [birpNote, setBirpNote] = useState<BIRPNote>(sampleBIRPNote);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  useEffect(() => {
+    setBirpNote((note) => ({
+      ...note,
+      patientId: activePatient.id,
+      patientName: activePatient.name,
+      date: new Date().toISOString().split('T')[0],
+    }));
+  }, [activePatient.id, activePatient.name]);
+
   const toggleRecording = () => {
     setIsRecording(!isRecording);
     if (!isRecording) {
       setTimeout(() => {
         setRawDictation(
-          'Patient Sarah Jenkins reported anxiety symptoms (mild) and good medication adherence with Lisinopril. Conducted 60-minute cognitive behavioral therapy and guided breathing. Patient demonstrated excellent comprehension and anxiety reduction.'
+          `Patient ${activePatient.name} reported anxiety symptoms (mild) and good medication adherence. Conducted 60-minute cognitive behavioral therapy and guided breathing. Patient demonstrated excellent comprehension and anxiety reduction.`
         );
         setIsRecording(false);
       }, 3000);
@@ -32,7 +63,7 @@ export const ClinicalDocumentation: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rawNotes: rawDictation,
-          patientName: samplePatient.name,
+          patientName: activePatient.name,
           visitType: 'Behavioral & Primary Care Consultation'
         })
       });
@@ -41,8 +72,8 @@ export const ClinicalDocumentation: React.FC = () => {
       if (data.birpNote) {
         setBirpNote({
           id: `birp_${Date.now()}`,
-          patientId: samplePatient.id,
-          patientName: samplePatient.name,
+          patientId: activePatient.id,
+          patientName: activePatient.name,
           providerName: 'Dr. Amara Patel, PsyD',
           date: new Date().toISOString().split('T')[0],
           behavior: data.birpNote.behavior || 'Patient presented alert and coherent.',
@@ -76,9 +107,24 @@ export const ClinicalDocumentation: React.FC = () => {
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-teal-400" />
             <h2 className="font-bold text-lg">AI Clinical Documentation & BIRP Note Generator</h2>
+            <span
+              title={usingLivePatient ? 'Patient context loaded from Supabase; note save/signature remains demo-only' : 'Demo patient context — connect Supabase to load live patient records'}
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                usingLivePatient
+                  ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                  : 'bg-amber-500/20 text-amber-100 border border-amber-400/30'
+              }`}
+            >
+              {usingLivePatient ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
+              {usingLivePatient ? 'Live patient' : 'Demo patient'}
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
-            Draft BIRP note structure and suggested CPT/ICD-10 coding from dictation. Compliance review and provider sign-off are still required.
+            {loading
+              ? 'Loading patient context and recent medical records...'
+              : error
+                ? `Could not load live clinical context (${error}); showing demo context.`
+                : 'Draft BIRP note structure and suggested CPT/ICD-10 coding from dictation. Compliance review and provider sign-off are still required.'}
           </p>
         </div>
       </div>
@@ -114,6 +160,30 @@ export const ClinicalDocumentation: React.FC = () => {
             className="w-full bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white p-3.5 rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono leading-relaxed"
           />
 
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-extrabold text-slate-700 dark:text-slate-200">Active Patient Context</span>
+              <span className={`font-bold text-[10px] px-2 py-0.5 rounded-full ${
+                usingLivePatient
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+              }`}>
+                {usingLivePatient ? 'Supabase' : 'Demo'}
+              </span>
+            </div>
+            <p className="mt-1 text-slate-600 dark:text-slate-300">
+              {activePatient.name} • DOB {activePatient.dob} • {activePatient.primaryCarePhysician || 'No PCP on file'}
+            </p>
+            <p className="mt-1 text-slate-500 dark:text-slate-400">
+              Allergies: {activePatient.allergies.length > 0 ? activePatient.allergies.join(', ') : 'None recorded'}
+            </p>
+            {latestRecord && (
+              <p className="mt-1 text-slate-500 dark:text-slate-400">
+                Latest record: {latestRecord.title} ({latestRecord.date}) — {latestRecord.summary}
+              </p>
+            )}
+          </div>
+
           <button
             onClick={handleGenerateBIRP}
             disabled={isGenerating || !rawDictation.trim()}
@@ -129,7 +199,7 @@ export const ClinicalDocumentation: React.FC = () => {
           <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
             <div>
               <span className="text-[10px] font-mono font-bold text-teal-600 dark:text-teal-400">
-                PATIENT: {samplePatient.name}
+                PATIENT: {activePatient.name}
               </span>
               <h3 className="font-bold text-base text-slate-900 dark:text-white">Formatted Clinical BIRP Note</h3>
             </div>
