@@ -49,7 +49,7 @@ export const EligibilityVerifier: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <ShieldCheck className="w-5 h-5 text-teal-400" />
-            <h2 className="font-bold text-lg">Real-Time EDI 270/271 Eligibility & Copay Verifier</h2>
+            <h2 className="font-bold text-lg">Demo EDI 270/271 Eligibility & Copay Verifier</h2>
             <span
               title="Demo workflow — no clearinghouse connection is configured in this app yet"
               className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-100 border border-amber-400/30"
@@ -120,8 +120,8 @@ export const EligibilityVerifier: React.FC = () => {
                 </span>
                 <h4 className="font-bold text-base text-slate-900 dark:text-white">{eligibilityResult.planName}</h4>
               </div>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 flex items-center gap-1">
-                <CheckCircle2 className="w-4 h-4" /> ACTIVE COVERAGE
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4" /> DEMO ACTIVE COVERAGE
               </span>
             </div>
 

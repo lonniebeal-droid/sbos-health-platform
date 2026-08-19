@@ -92,7 +92,7 @@ export const LabIntegrationHub: React.FC = () => {
               className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2"
             >
               <TestTube className="w-4 h-4 text-teal-300" />
-              Transmit HL7 Electronic Lab Order
+              Queue Demo Lab Order
             </button>
           </div>
         </div>
@@ -119,7 +119,7 @@ export const LabIntegrationHub: React.FC = () => {
                       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                       : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                   }`}>
-                    {lab.status === 'completed' ? 'Certified Result' : 'Pending Specimen'}
+                    {lab.status === 'completed' ? 'Demo Result' : 'Pending Specimen'}
                   </span>
                 </div>
 
