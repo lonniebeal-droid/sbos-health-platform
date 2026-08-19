@@ -78,7 +78,7 @@ export const ClinicalDocumentation: React.FC = () => {
             <h2 className="font-bold text-lg">AI Clinical Documentation & BIRP Note Generator</h2>
           </div>
           <p className="text-xs text-blue-200 mt-1">
-            Convert raw physician audio dictation or bullet points into HIPAA & CMS compliant BIRP notes and CPT/ICD-10 codes.
+            Draft BIRP note structure and suggested CPT/ICD-10 coding from dictation. Compliance review and provider sign-off are still required.
           </p>
         </div>
       </div>

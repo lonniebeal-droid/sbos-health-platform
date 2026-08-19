@@ -128,7 +128,7 @@ export const PrescriptionsView: React.FC = () => {
 
             {requestSuccess === rx.id ? (
               <div className="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold text-center flex items-center justify-center gap-1.5">
-                <CheckCircle className="w-4 h-4" /> Electronic Refill Sent to Pharmacy!
+                <CheckCircle className="w-4 h-4" /> Demo refill request queued. Live pharmacy transmission is not configured yet.
               </div>
             ) : (
               <button
@@ -137,7 +137,7 @@ export const PrescriptionsView: React.FC = () => {
                 className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white text-xs font-bold shadow-xs transition-colors flex items-center justify-center gap-2"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                {rx.status === 'refill_requested' ? 'Refill Order In Process' : 'Request 1-Click Pharmacy Refill'}
+                {rx.status === 'refill_requested' ? 'Demo Refill Order In Process' : 'Request Demo Pharmacy Refill'}
               </button>
             )}
 

@@ -21,7 +21,7 @@ export const InsuranceHub: React.FC = () => {
           }`}
         >
           <FileText className="w-4 h-4" />
-          EDI 837 Claims & FWA Fraud Adjudication
+          Demo Claims & FWA Review
         </button>
 
         <button
@@ -33,7 +33,7 @@ export const InsuranceHub: React.FC = () => {
           }`}
         >
           <ShieldAlert className="w-4 h-4" />
-          Prior Authorization Adjudication (278)
+          Prior Authorization Review
         </button>
 
         <button
@@ -45,7 +45,7 @@ export const InsuranceHub: React.FC = () => {
           }`}
         >
           <Search className="w-4 h-4" />
-          EDI 270/271 Real-Time Eligibility Verifier
+          Demo 270/271 Eligibility Verifier
         </button>
       </div>
 

@@ -197,7 +197,7 @@ export const PriorAuthEngine: React.FC = () => {
         <div className="lg:col-span-5 space-y-4 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md">
           <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
             <Send className="w-4 h-4 text-blue-500" />
-            Submit Electronic Prior Authorization (278 EDI)
+            Create Prior Authorization Review Request
           </h3>
 
           <div className="space-y-3 text-xs">
