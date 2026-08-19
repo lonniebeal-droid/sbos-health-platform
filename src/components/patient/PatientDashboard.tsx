@@ -252,7 +252,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
                     className="w-full py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition-transform active:scale-95"
                   >
                     <Video className="w-4 h-4" />
-                    Enter Virtual Telehealth Room
+                    Open Demo Telehealth Room
                   </button>
                 </div>
               ))}

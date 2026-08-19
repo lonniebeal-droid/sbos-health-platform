@@ -19,6 +19,7 @@ export const BenefitsExplainer: React.FC = () => {
   );
   const plan: BenefitsPlan =
     isSupabaseConfigured && realPlans && realPlans.length > 0 ? realPlans[0] : sampleBenefitsPlan;
+  const usingLivePlan = isSupabaseConfigured && Boolean(realPlans?.length);
 
   const sampleCoverageList = [
     { service: 'Primary Care Visit', covered: true, details: '$20 copay per visit (In-Network)', category: 'Doctor Visits' },
@@ -45,14 +46,14 @@ export const BenefitsExplainer: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: `Does my SBOS Gold Premier PPO plan cover "${query}"? Explain copays, deductibles, or prior authorization requirements in simple English.`,
+          prompt: `Using the member's ${plan.planName} benefits summary, answer this coverage question cautiously: "${query}". Explain known copays, deductible status, and prior authorization considerations in simple English. If exact service-level coverage rules are not available, say a benefits representative should verify before care is scheduled.`,
           context: 'general_patient'
         })
       });
       const data = await response.json();
       setAiAnswer(data.reply);
     } catch {
-      setAiAnswer(`Yes, under your SBOS Gold Premier PPO plan, "${query}" is covered in-network with a standard copay or coinsurance once your deductible is met.`);
+      setAiAnswer(`Demo guidance for ${plan.planName}: "${query}" may depend on network status, medical necessity, deductible progress, and prior authorization rules. Verify the exact benefit before scheduling care.`);
     } finally {
       setIsSearching(false);
     }
@@ -69,11 +70,13 @@ export const BenefitsExplainer: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <span className="text-xs font-bold font-mono px-3 py-1 rounded-full bg-teal-400/20 text-teal-300 border border-teal-400/30">
-              ACTIVE POLICY: {plan.planId}
+              {usingLivePlan ? 'ACTIVE POLICY' : 'DEMO POLICY'}: {plan.planId}
             </span>
             <h2 className="text-2xl font-extrabold mt-2">{plan.planName}</h2>
             <p className="text-xs text-teal-100 mt-1">
-              Comprehensive medical, mental health, prescription, and emergency coverage.
+              {usingLivePlan
+                ? 'Member plan summary loaded from the connected database.'
+                : 'Demo medical, mental health, prescription, and emergency coverage summary.'}
             </p>
           </div>
 
@@ -168,6 +171,14 @@ export const BenefitsExplainer: React.FC = () => {
       </div>
 
       {/* Coverage Grid */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          Demo Coverage Examples
+        </h3>
+        <span className="text-[10px] text-slate-500 dark:text-slate-400">
+          Examples only; not a guarantee of benefits.
+        </span>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {filteredServices.map((item, idx) => (
           <div

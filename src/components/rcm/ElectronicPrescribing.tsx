@@ -70,7 +70,7 @@ export const ElectronicPrescribing: React.FC = () => {
         <div className="lg:col-span-5 space-y-4 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md">
           <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
             <Send className="w-4 h-4 text-blue-500" />
-            Create Electronic Order for {samplePatient.name}
+            Create Demo Medication Order for {samplePatient.name}
           </h3>
 
           <div className="space-y-3 text-xs">
@@ -134,7 +134,7 @@ export const ElectronicPrescribing: React.FC = () => {
                 className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2"
               >
                 <ShieldCheck className="w-4 h-4 text-teal-300" />
-                Run Allergy Check & Transmit e-Rx Order
+                Run Allergy Check & Queue Demo e-Rx Order
               </button>
             )}
           </div>
