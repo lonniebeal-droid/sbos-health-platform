@@ -21,8 +21,7 @@ Grouped by priority. Authoritative task list; keep in sync with `TECH_DEBT.md`.
 - ✅ Patient directory (`provider/PatientManagement`)
 - ✅ Prescriptions (`patient/PrescriptionsView`) + real refill
 - ✅ Appointments (`patient/PatientDashboard`)
-- 🔄 Claims (`patient/ClaimsTracker`, `insurance/InsuranceClaimsCenter`) — **NEXT**
-      (needs a patient/provider-side claims RLS policy)
+- ✅ Claims (`patient/ClaimsTracker`, `insurance/InsuranceClaimsCenter`) + patient/provider/payer visibility RLS
 - ⬜ Patient self-profile in `PatientDashboard` header (still `samplePatient`)
 - ⬜ Medical records (`patient/MedicalRecordsView`) — needs `medical_records` table
 - ⬜ Benefits (`patient/BenefitsExplainer`) — needs `benefits_plans` table
@@ -43,7 +42,7 @@ Grouped by priority. Authoritative task list; keep in sync with `TECH_DEBT.md`.
 - ⬜ Real audit logging on every PHI access (write to `audit_logs`)
 - ⬜ Schema extensions: `patient_messages`, `benefits_plans`, `medical_records`,
       provider profile fields (rating/bio/avatar/affiliation)
-- ⬜ Claims provider-side visibility RLS
+- ✅ Claims provider-side visibility RLS
 - ⬜ Input validation + error handling on all write paths
 - ⬜ Integration tests: sign in per role and assert RLS boundaries
 - ⬜ MFA (Supabase Auth) enable + enforcement per tenant flag

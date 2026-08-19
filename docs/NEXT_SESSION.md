@@ -72,12 +72,11 @@ validation / rate limiting / security headers; two package managers
 claims provider-side RLS missing; OpenAPI spec incomplete.
 
 ## Immediate next task
-Migrate **claims** to real data (see `docs/TODO.md` P0). Add
-`claims.listDetailed()` (join patient + provider names), `mapClaim()`, wire
-`ClaimsTracker` (patient) and `InsuranceClaimsCenter` (payer). Claims RLS is
-payer-scoped — add a patient/provider-side claims policy in a new migration so
-the patient view returns rows. Verify with `supabase db reset` + signed-in
-queries for both a payer and a patient, then `npm test` + `npm run build`.
+Continue replacing remaining demo fallbacks with live data where the schema
+already exists: medical records, benefits, prior authorization, admin audit
+logs, and provider search all have repository seams in code. Claims are no
+longer the next task: `claims.listDetailed()`, `mapClaim()`, patient + payer UI
+wiring, and `20260725020000_claims_visibility.sql` already exist.
 
 ## Long-term roadmap
 Phase 2 finish (all core EHR entities on real data) → Phase 3 clinical
@@ -121,11 +120,10 @@ Local test accounts (password `Password123!`): `provider@bayarea.test`,
 `patient@bayarea.test`, `payer@sbospremier.test`, `admin@bayarea.test`.
 Supabase Studio: http://127.0.0.1:54323
 
-## Files most likely edited next (claims migration)
-- `src/lib/db/database.types.ts` (add `ClaimWithNames`)
-- `src/lib/db/mappers.ts` (add `mapClaim`)
-- `src/lib/repositories.ts` (add `claims.listDetailed`)
-- `supabase/migrations/2026072502xxxx_claims_visibility_rls.sql` (new)
-- `src/components/patient/ClaimsTracker.tsx`
-- `src/components/insurance/InsuranceClaimsCenter.tsx`
-- `src/tests/mappers.test.ts` (add mapClaim tests)
+## Files most likely edited next
+- `src/components/patient/MedicalRecordsView.tsx`
+- `src/components/patient/BenefitsExplainer.tsx`
+- `src/components/rcm/PriorAuthEngine.tsx`
+- `src/components/patient/ProviderSearch.tsx`
+- `src/components/admin/AdminPortal.tsx`
+- `src/tests/mappers.test.ts` / repository tests as needed
