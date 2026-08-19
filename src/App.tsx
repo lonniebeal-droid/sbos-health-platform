@@ -108,7 +108,7 @@ function AppShell() {
       <AIAssistantWidget
         isOpen={isAiWidgetOpen}
         onClose={() => setIsAiWidgetOpen(false)}
-        currentRole={currentRole}
+        activeRole={currentRole}
       />
 
       {/* Footer */}
