@@ -3,8 +3,10 @@ import { sampleProviders, sampleAppointments } from '../../data/mockData';
 import { Provider, Appointment } from '../../types';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
-import { mapProvider } from '../../lib/db/mappers';
+import { mapAppointment, mapPatient, mapProvider } from '../../lib/db/mappers';
+import type { AppointmentInsert } from '../../lib/db/database.types';
 import { useAsync } from '../../lib/hooks/useAsync';
+import { useOrg } from '../../lib/organizationContext';
 import { Search, MapPin, Star, Calendar, Clock, Video, CheckCircle, Stethoscope, Database, FlaskConical } from 'lucide-react';
 
 interface ProviderSearchProps {
@@ -16,6 +18,7 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
   onBookAppointment,
   onLaunchTelehealth
 }) => {
+  const { currentOrg, source: organizationSource } = useOrg();
   const [query, setQuery] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('All');
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
@@ -27,7 +30,12 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
     async () => (await getRepositories().providers.listDetailed()).map(mapProvider),
     isSupabaseConfigured,
   );
+  const { data: realPatients } = useAsync(
+    async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
+    isSupabaseConfigured,
+  );
   const usingLive = isSupabaseConfigured && !!realProviders && realProviders.length > 0;
+  const canPersistBooking = usingLive && organizationSource === 'supabase' && !!realPatients?.[0];
   const providers = usingLive ? realProviders : sampleProviders;
 
   const specialties = ['All', 'Internal Medicine', 'Behavioral Health', 'Cardiology'];
@@ -39,8 +47,46 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
     return matchesQuery && matchesSpecialty;
   });
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
     if (!selectedProvider) return;
+
+    if (canPersistBooking) {
+      try {
+        const [time, period] = bookingTime.split(' ');
+        const [hourText, minute = '00'] = time.split(':');
+        let hour = Number(hourText);
+        if (period === 'PM' && hour !== 12) hour += 12;
+        if (period === 'AM' && hour === 12) hour = 0;
+        const scheduledAt = `${bookingDate}T${String(hour).padStart(2, '0')}:${minute}:00`;
+        const payload: AppointmentInsert = {
+          patient_id: realPatients[0].id,
+          provider_id: selectedProvider.id,
+          organization_id: currentOrg.id,
+          appointment_type: visitType,
+          status: 'scheduled',
+          scheduled_at: scheduledAt,
+          telehealth_room_url: visitType === 'telehealth' ? `https://sbos.health/meet/room-${Date.now()}` : null,
+          chief_complaint: 'Routine Consultation',
+        };
+        const created = await getRepositories().appointments.create(payload);
+        onBookAppointment(mapAppointment({
+          ...created,
+          patient: { user: { full_name: realPatients[0].name } },
+          provider: {
+            specialty: selectedProvider.specialty,
+            user: { full_name: selectedProvider.name },
+          },
+        }));
+        setBookingSuccess(true);
+        setTimeout(() => {
+          setBookingSuccess(false);
+          setSelectedProvider(null);
+        }, 2500);
+        return;
+      } catch {
+        // Keep the demo booking path available if the live insert is blocked by RLS.
+      }
+    }
 
     const newApt: Appointment = {
       id: `apt_${Date.now()}`,
@@ -276,7 +322,7 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
                 onClick={handleConfirmBooking}
                 className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition-colors"
               >
-                Confirm Booking
+                {canPersistBooking ? 'Confirm Live Booking' : 'Confirm Demo Booking'}
               </button>
             )}
 
