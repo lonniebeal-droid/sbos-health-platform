@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import type { Session } from '@supabase/supabase-js';
 import { isSupabaseConfigured } from './supabaseClient';
 import { getAuthService } from './services/authService';
+import { mapDbRoleToUiRole } from './roleMapping';
 import type { UserRow } from './db/database.types';
 import type { Role } from '../types';
 
@@ -68,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(null);
   }, []);
 
-  const role = (profile?.role as Role) ?? null;
+  const role = profile ? mapDbRoleToUiRole(profile.role) : null;
 
   return (
     <AuthContext.Provider

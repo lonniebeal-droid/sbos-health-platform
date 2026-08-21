@@ -69,14 +69,16 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
           chief_complaint: 'Routine Consultation',
         };
         const created = await getRepositories().appointments.create(payload);
-        onBookAppointment(mapAppointment({
-          ...created,
-          patient: { user: { full_name: realPatients[0].name } },
-          provider: {
-            specialty: selectedProvider.specialty,
-            user: { full_name: selectedProvider.name },
-          },
-        }));
+        onBookAppointment({
+          ...mapAppointment({
+            ...created,
+            patient: { full_name: realPatients[0].name },
+            provider: { full_name: selectedProvider.name },
+          }),
+          // mapAppointment() leaves providerSpecialty blank (no live source);
+          // fill it in from the Provider we already have client-side.
+          providerSpecialty: selectedProvider.specialty,
+        });
         setBookingSuccess(true);
         setTimeout(() => {
           setBookingSuccess(false);

@@ -1,17 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import { sampleClaims } from '../../data/mockData';
-import { Claim, ClaimStatus } from '../../types';
+import { Claim, DenialCode } from '../../types';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
 import { mapClaim } from '../../lib/db/mappers';
 import { useAsync } from '../../lib/hooks/useAsync';
-import { ShieldAlert, CheckCircle2, XCircle, Sparkles, Database, FlaskConical } from 'lucide-react';
+import { classifyClaim, getNextStepRecommendation, DENIAL_REASONS } from '../../lib/claimsAutomation';
+import {
+  ShieldAlert,
+  CheckCircle2,
+  XCircle,
+  Sparkles,
+  Database,
+  FlaskConical,
+  Zap,
+  Loader2,
+  AlertCircle,
+} from 'lucide-react';
+
+const DENIAL_CODES = Object.keys(DENIAL_REASONS) as DenialCode[];
+
+/** Local override applied on top of a base claim (demo mode) or refetched after a real write (live mode). */
+type ClaimOverride = Pick<Claim, 'status' | 'planCoveredAmount' | 'denialCode' | 'denialReason' | 'adjudicationMethod'>;
 
 export const InsuranceClaimsCenter: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [statusOverrides, setStatusOverrides] = useState<Record<string, ClaimStatus>>({});
+  const [overrides, setOverrides] = useState<Record<string, ClaimOverride>>({});
   const [isAnalyzingFwa, setIsAnalyzingFwa] = useState(false);
   const [fwaResult, setFwaResult] = useState<any>(null);
+  const [isRunningAutomation, setIsRunningAutomation] = useState(false);
+  const [autoRunSummary, setAutoRunSummary] = useState<string | null>(null);
+
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [denialCode, setDenialCode] = useState<DenialCode>('MISSING_DOCS');
+  const [denialReason, setDenialReason] = useState('');
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
   const { data: realClaims, loading, error } = useAsync<Claim[]>(
     async () => (await getRepositories().claims.listDetailed()).map(mapClaim),
@@ -19,9 +43,7 @@ export const InsuranceClaimsCenter: React.FC = () => {
   );
   const usingLive = isSupabaseConfigured && !!realClaims && realClaims.length > 0;
   const baseClaims: Claim[] = usingLive ? (realClaims as Claim[]) : sampleClaims;
-  const claims: Claim[] = baseClaims.map((c) =>
-    statusOverrides[c.id] ? { ...c, status: statusOverrides[c.id] } : c,
-  );
+  const claims: Claim[] = baseClaims.map((c) => (overrides[c.id] ? { ...c, ...overrides[c.id] } : c));
   const selectedClaim = claims.find((c) => c.id === selectedId) ?? claims[0] ?? null;
 
   useEffect(() => {
@@ -31,21 +53,108 @@ export const InsuranceClaimsCenter: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [claims]);
 
-  const handleAdjudicate = async (id: string, newStatus: 'approved' | 'denied') => {
-    const status: ClaimStatus = newStatus === 'approved' ? 'paid' : 'denied';
-    setStatusOverrides((prev) => ({ ...prev, [id]: status }));
-    if (usingLive) {
-      try {
-        await getRepositories().claims.updateStatus(id, status);
-      } catch {
-        setStatusOverrides((prev) => {
-          const next = { ...prev };
-          delete next[id];
-          return next;
-        });
-      }
+  useEffect(() => {
+    setFwaResult(null);
+    setActionError(null);
+    if (selectedClaim) {
+      setPaymentAmount(selectedClaim.planCoveredAmount.toFixed(2));
+      setDenialReason('');
     }
-  };
+  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function applyOverride(id: string, patch: ClaimOverride) {
+    setOverrides((prev) => ({ ...prev, [id]: patch }));
+  }
+
+  async function decide(id: string, patch: ClaimOverride) {
+    // Optimistic local update so the UI reflects the decision immediately,
+    // whether or not a live write follows (demo mode never writes to
+    // Supabase — same honesty convention this file already used).
+    applyOverride(id, patch);
+    if (!usingLive) return;
+    try {
+      if (patch.status === 'paid') {
+        await getRepositories().claims.approve(id, patch.planCoveredAmount, patch.adjudicationMethod);
+      } else if (patch.status === 'denied') {
+        await getRepositories().claims.deny(
+          id,
+          patch.denialCode as string,
+          patch.denialReason || DENIAL_REASONS[patch.denialCode as DenialCode].label,
+          patch.adjudicationMethod,
+        );
+      }
+    } catch (err: any) {
+      setOverrides((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      throw err;
+    }
+  }
+
+  async function handleApprove() {
+    if (!selectedClaim) return;
+    const amount = Number(paymentAmount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      setActionError('Enter a valid payment amount.');
+      return;
+    }
+    setIsSubmittingAction(true);
+    setActionError(null);
+    try {
+      await decide(selectedClaim.id, {
+        status: 'paid',
+        planCoveredAmount: amount,
+        denialCode: null,
+        denialReason: null,
+        adjudicationMethod: 'manual',
+      });
+    } catch (err: any) {
+      setActionError(err?.message || 'Failed to approve claim');
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  }
+
+  async function handleDeny() {
+    if (!selectedClaim) return;
+    setIsSubmittingAction(true);
+    setActionError(null);
+    try {
+      await decide(selectedClaim.id, {
+        status: 'denied',
+        planCoveredAmount: selectedClaim.planCoveredAmount,
+        denialCode,
+        denialReason: denialReason.trim() || DENIAL_REASONS[denialCode].label,
+        adjudicationMethod: 'manual',
+      });
+    } catch (err: any) {
+      setActionError(err?.message || 'Failed to deny claim');
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  }
+
+  async function handleRunAutomation() {
+    setIsRunningAutomation(true);
+    setAutoRunSummary(null);
+    let count = 0;
+    for (const claim of claims) {
+      const classification = classifyClaim(claim);
+      if (classification.recommendedAction !== 'auto_approve') continue;
+      await decide(claim.id, {
+        status: 'paid',
+        planCoveredAmount: claim.planCoveredAmount,
+        denialCode: null,
+        denialReason: null,
+        adjudicationMethod: 'automated',
+      });
+      count += 1;
+    }
+    setAutoRunSummary(count === 0 ? 'No claims were eligible for automatic approval.' : `Auto-approved ${count} claim${count === 1 ? '' : 's'}.`);
+    setIsRunningAutomation(false);
+  }
 
   const handleRunAiFraudCheck = async (claim: Claim) => {
     setIsAnalyzingFwa(true);
@@ -70,9 +179,12 @@ export const InsuranceClaimsCenter: React.FC = () => {
     }
   };
 
+  const needsReviewCount = claims.filter((c) => classifyClaim(c).recommendedAction === 'manual_review').length;
+  const autoEligibleCount = claims.filter((c) => classifyClaim(c).recommendedAction === 'auto_approve').length;
+
   return (
     <div className="space-y-6">
-      
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-indigo-900 via-purple-900 to-slate-900 text-white shadow-lg">
         <div>
@@ -102,16 +214,34 @@ export const InsuranceClaimsCenter: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex gap-3 text-xs">
+        <div className="flex gap-3 text-xs items-center">
           <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/20">
-            <span className="text-indigo-200 block text-[10px]">Adjudication Mode</span>
-            <span className="font-mono font-bold text-teal-300">{usingLive ? 'Live status updates' : 'Demo workflow'}</span>
+            <span className="text-indigo-200 block text-[10px]">Needs Review</span>
+            <span className="font-mono font-bold text-amber-300">{needsReviewCount}</span>
           </div>
+          <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/20">
+            <span className="text-indigo-200 block text-[10px]">Auto-Eligible</span>
+            <span className="font-mono font-bold text-teal-300">{autoEligibleCount}</span>
+          </div>
+          <button
+            onClick={handleRunAutomation}
+            disabled={isRunningAutomation || autoEligibleCount === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-600 disabled:opacity-50 text-white font-bold text-[11px] transition-colors"
+          >
+            {isRunningAutomation ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+            Run Automation Now
+          </button>
         </div>
       </div>
 
+      {autoRunSummary && (
+        <div className="text-xs text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 rounded-lg px-3 py-2">
+          {autoRunSummary}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* Claims Queue */}
         <div className="lg:col-span-5 space-y-3">
           {claims.map((claim) => {
@@ -150,6 +280,16 @@ export const InsuranceClaimsCenter: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                <div className="mt-2 flex items-center gap-1.5">
+                  {claim.adjudicationMethod === 'automated' && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300">
+                      <Zap className="w-2.5 h-2.5" /> Auto-adjudicated
+                    </span>
+                  )}
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    {getNextStepRecommendation(claim)}
+                  </span>
+                </div>
               </div>
             );
           })}
@@ -159,7 +299,7 @@ export const InsuranceClaimsCenter: React.FC = () => {
         <div className="lg:col-span-7">
           {selectedClaim ? (
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md space-y-5">
-              
+
               <div className="flex justify-between items-start pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div>
                   <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">{selectedClaim.claimNumber}</span>
@@ -169,6 +309,12 @@ export const InsuranceClaimsCenter: React.FC = () => {
                 <div className="text-right font-mono font-extrabold text-xl text-slate-900 dark:text-white">
                   ${selectedClaim.totalBilled.toFixed(2)}
                 </div>
+              </div>
+
+              {/* Automation / next-step insight */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300">
+                <span className="font-bold">Recommended next step: </span>
+                {getNextStepRecommendation(selectedClaim)}
               </div>
 
               {/* AI FWA Analysis Box */}
@@ -204,26 +350,82 @@ export const InsuranceClaimsCenter: React.FC = () => {
                 )}
               </div>
 
-              {/* Adjudication Decision Controls */}
-              <div className="pt-3 flex gap-3">
-                <button
-                  onClick={() => handleAdjudicate(selectedClaim.id, 'approved')}
-                  disabled={selectedClaim.status === 'paid'}
-                  className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  {selectedClaim.status === 'paid' ? 'Paid & Adjudicated' : usingLive ? 'Approve & Mark Paid' : 'Demo Approve & Pay'}
-                </button>
+              {actionError && (
+                <div className="flex items-center gap-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {actionError}
+                </div>
+              )}
 
-                <button
-                  onClick={() => handleAdjudicate(selectedClaim.id, 'denied')}
-                  disabled={selectedClaim.status === 'denied'}
-                  className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <XCircle className="w-4 h-4" />
-                  {selectedClaim.status === 'denied' ? 'Claim Denied' : usingLive ? 'Deny Claim' : 'Demo Deny Claim'}
-                </button>
-              </div>
+              {selectedClaim.status === 'paid' ? (
+                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Paid ${selectedClaim.planCoveredAmount.toFixed(2)}
+                  {selectedClaim.adjudicationMethod === 'automated' ? ' (automated)' : usingLive ? ' (manual)' : ' (demo)'}
+                </div>
+              ) : selectedClaim.status === 'denied' ? (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-xs text-rose-800 dark:text-rose-300 flex items-start gap-2">
+                  <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Denied — {selectedClaim.denialCode}</p>
+                    <p>{selectedClaim.denialReason}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  {/* Approve / payment */}
+                  <div className="space-y-2 p-3 rounded-xl border border-emerald-200 dark:border-emerald-900">
+                    <label className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
+                      Payment amount ($)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <button
+                      onClick={handleApprove}
+                      disabled={isSubmittingAction}
+                      className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-4 h-4" /> {usingLive ? 'Approve & Pay Claim' : 'Demo Approve & Pay'}
+                    </button>
+                  </div>
+
+                  {/* Deny */}
+                  <div className="space-y-2 p-3 rounded-xl border border-rose-200 dark:border-rose-900">
+                    <label className="text-[11px] font-bold text-rose-800 dark:text-rose-300">Denial reason</label>
+                    <select
+                      value={denialCode}
+                      onChange={(e) => setDenialCode(e.target.value as DenialCode)}
+                      className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500"
+                    >
+                      {DENIAL_CODES.map((code) => (
+                        <option key={code} value={code}>
+                          {DENIAL_REASONS[code].label}
+                        </option>
+                      ))}
+                    </select>
+                    <textarea
+                      value={denialReason}
+                      onChange={(e) => setDenialReason(e.target.value)}
+                      placeholder="Optional additional notes"
+                      rows={1}
+                      className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                    <button
+                      onClick={handleDeny}
+                      disabled={isSubmittingAction}
+                      className="w-full py-2 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-bold shadow-md transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <XCircle className="w-4 h-4" /> {usingLive ? 'Deny Claim' : 'Demo Deny Claim'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
             </div>
           ) : (

@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapLabResult, mapBenefitsPlan, mapPrescription } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, LabResultRow, BenefitsPlanRow, PrescriptionWithProvider } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapProvider, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapLabResult, mapBenefitsPlan, mapPrescription } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithDetails, InsuranceInfoRow, ProviderIdentityRow, AppointmentWithNames, ClaimWithDetails, ClaimPaymentRow, ClaimAdjustmentRow, ClaimDenialRow, ClaimStatusEventRow, PriorAuthorizationWithNames, MedicalRecordRow, LabResultRow, BenefitsPlanRow, PrescriptionWithProvider } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
-  id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
+  id: 'org-1', name: 'Bay Area Health System', slug: 'bay-area-health-system', type: 'health_system',
   tax_id: '94-1829012', npi: '1882901230',
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
@@ -26,6 +26,13 @@ describe('mapOrganizationToTenantOrg', () => {
     expect(t.type).toBe('health_system');
     expect(t.badge).toBe('Clinic Network');
   });
+
+  it('degrades honestly when the live row has no type/tax_id/npi columns yet', () => {
+    const t = mapOrganizationToTenantOrg({ id: 'org-2', name: 'New Org', slug: 'new-org', created_at: '', updated_at: '' });
+    expect(t.type).toBe('health_system');
+    expect(t.badge).toBe('Organization');
+    expect(t.npiOrTaxId).toBe('—');
+  });
 });
 
 const baseLog: AuditLogRow = {
@@ -38,8 +45,8 @@ describe('mapAuditLog', () => {
   it('uses the actor profile for name/role when provided', () => {
     const actor: UserRow = {
       id: 'user-1', organization_id: 'org-1', email: 'j@x.com',
-      role: 'provider', full_name: 'Dr. J', phone: null, is_active: true,
-      created_at: '2026-01-01T00:00:00Z',
+      role: 'provider', full_name: 'Dr. J', is_active: true,
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
     };
     const log = mapAuditLog(baseLog, actor);
     expect(log.userName).toBe('Dr. J');
@@ -60,32 +67,61 @@ describe('mapAuditLog', () => {
   });
 });
 
-const basePatientRow: PatientWithUser = {
-  id: 'pat-1', user_id: 'u-1', organization_id: 'org-1',
-  dob: '1988-04-12', gender: 'Female', address: '742 Evergreen Terrace',
-  insurance_member_id: 'SBOS-98421092', policy_group_number: 'GOLD-PPO',
-  blood_type: 'A+', allergies: ['Penicillin'], chronic_conditions: ['Asthma'],
-  recent_vitals: { bloodPressure: '118/76', heartRate: 72, spO2: 99, weightLbs: 142, date: '2026-07-20' },
-  family_members: [{ id: 'fm1', name: 'David', relation: 'Spouse', dob: '1986-09-18' }],
-  primary_care_physician: 'Dr. Wilson', created_at: '2026-01-01T00:00:00Z',
-  user: { full_name: 'Sarah Jenkins', email: 'sarah@x.com', phone: '(555) 382-9102' },
+const baseInsurance: InsuranceInfoRow = {
+  id: 'ins-1', organization_id: 'org-1', patient_id: 'pat-1', payer_name: 'SBOS Gold Premier PPO',
+  plan_name: 'Gold PPO', member_id: 'SBOS-98421092', group_number: 'GOLD-PPO',
+  policy_holder_name: 'Sarah Jenkins', relationship_to_patient: 'self',
+  coverage_start_date: '2026-01-01', coverage_end_date: null, status: 'active',
+  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+};
+
+const basePatientRow: PatientWithDetails = {
+  id: 'pat-1', organization_id: 'org-1', user_id: 'u-1',
+  full_name: 'Sarah Jenkins', date_of_birth: '1988-04-12', gender: 'Female',
+  email: 'sarah@x.com', phone: '(555) 382-9102', address: '742 Evergreen Terrace',
+  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+  insurance: baseInsurance,
 };
 
 describe('mapPatient', () => {
-  it('pulls name/email/phone from the joined user and keeps clinical fields', () => {
+  it('pulls name/email/phone/address directly off the live patients row', () => {
     const p = mapPatient(basePatientRow);
     expect(p.name).toBe('Sarah Jenkins');
     expect(p.email).toBe('sarah@x.com');
     expect(p.phone).toBe('(555) 382-9102');
-    expect(p.recentVitals.bloodPressure).toBe('118/76');
-    expect(p.familyMembers).toHaveLength(1);
-    expect(p.primaryCarePhysician).toBe('Dr. Wilson');
+    expect(p.insuranceId).toBe('SBOS-98421092');
+    expect(p.policyGroup).toBe('GOLD-PPO');
   });
 
-  it('degrades gracefully when the user join and vitals are missing', () => {
-    const p = mapPatient({ ...basePatientRow, user: null, recent_vitals: null });
+  it('degrades gracefully when insurance is missing and honestly empties clinical fields with no live table', () => {
+    const p = mapPatient({ ...basePatientRow, full_name: '', insurance: null });
     expect(p.name).toBe('Unknown Patient');
+    expect(p.insuranceId).toBe('');
+    expect(p.policyGroup).toBe('');
     expect(p.recentVitals.heartRate).toBe(0);
+    expect(p.allergies).toEqual([]);
+    expect(p.familyMembers).toEqual([]);
+  });
+});
+
+describe('mapProvider', () => {
+  const providerRow: ProviderIdentityRow = {
+    id: 'prov-1', organization_id: 'org-1', full_name: 'Dr. James Wilson', is_active: true,
+    created_at: '2026-01-01T00:00:00Z',
+  };
+
+  it('maps identity from a users row (no live providers table) and leaves unavailable fields honest', () => {
+    const p = mapProvider(providerRow);
+    expect(p.name).toBe('Dr. James Wilson');
+    expect(p.specialty).toBe('');
+    expect(p.npi).toBe('');
+    expect(p.hospitalAffiliation).toBe('Organization network');
+  });
+
+  it('falls back to Unknown Provider and Network not assigned when name/org are missing', () => {
+    const p = mapProvider({ ...providerRow, full_name: '', organization_id: null });
+    expect(p.name).toBe('Unknown Provider');
+    expect(p.hospitalAffiliation).toBe('Network not assigned');
   });
 });
 
@@ -103,16 +139,18 @@ describe('mapAppointment', () => {
     id: 'apt-1', patient_id: 'pat-1', provider_id: 'prov-1', organization_id: 'org-1',
     appointment_type: 'telehealth', status: 'scheduled', scheduled_at: '2026-07-28T10:00:00Z',
     telehealth_room_url: 'https://sbos.health/meet/x', chief_complaint: 'Wellness check',
-    created_at: '2026-01-01T00:00:00Z',
-    patient: { user: { full_name: 'Sarah Jenkins' } },
-    provider: { specialty: 'Internal Medicine', user: { full_name: 'Dr. James Wilson' } },
+    created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    patient: { full_name: 'Sarah Jenkins' },
+    provider: { full_name: 'Dr. James Wilson' },
   };
 
   it('maps names, date/time, type, reason, and meet link', () => {
     const a = mapAppointment(row);
     expect(a.patientName).toBe('Sarah Jenkins');
     expect(a.providerName).toBe('Dr. James Wilson');
-    expect(a.providerSpecialty).toBe('Internal Medicine');
+    // No live providers table yet, so specialty has no source here — callers
+    // that already know it (ProviderSearch.tsx) fill it in client-side.
+    expect(a.providerSpecialty).toBe('');
     expect(a.date).toBe('2026-07-28');
     expect(a.time).toBe('10:00 AM');
     expect(a.type).toBe('telehealth');
@@ -163,45 +201,110 @@ describe('mapPrescription', () => {
 });
 
 describe('mapClaim', () => {
-  const row: ClaimWithNames = {
-    id: 'clm-1', claim_number: 'CLM-2026-884102', patient_id: 'pat-1', provider_id: 'prov-1',
-    payer_organization_id: 'org-2', organization_id: 'org-1', service_date: '2026-07-10',
-    total_billed: 1250, approved_amount: 1100, patient_copay: 30, status: 'paid',
-    icd10_codes: ['R07.9', 'I10'], cpt_codes: ['71250', '99214'], ai_risk_score: 4, ai_risk_flags: [],
-    plain_english_explanation: 'Covered at 90%.',
-    patient_name: null, provider_name: null, provider_npi: null,
-    created_at: '2026-07-11T00:00:00Z',
-    patient: { user: { full_name: 'Sarah Jenkins' } },
-    provider: { npi: '1982736410', user: { full_name: 'Dr. James Wilson' } },
+  const payerPayment: ClaimPaymentRow = {
+    id: 'pay-1', organization_id: 'org-1', claim_id: 'clm-1', claim_line_id: null,
+    payment_source: 'payer', payment_method: 'manual_adjudication', amount_cents: 110000,
+    reference_number: null, paid_at: '2026-07-12T00:00:00Z', posted_by_user_id: null,
+    created_at: '2026-07-12T00:00:00Z', updated_at: '2026-07-12T00:00:00Z',
+  };
+  const paidEvent: ClaimStatusEventRow = {
+    id: 'evt-1', organization_id: 'org-1', claim_id: 'clm-1', from_status: 'in_review', to_status: 'paid',
+    reason: '[manual] approved and paid $1100.00', changed_by_user_id: null, created_at: '2026-07-12T00:00:00Z',
   };
 
-  it('maps names, NPI, amounts, codes, and explanation via join', () => {
+  const row: ClaimWithDetails = {
+    id: 'clm-1', organization_id: 'org-1', patient_id: 'pat-1', encounter_id: 'enc-1',
+    insurance_info_id: 'ins-1', claim_number: 'CLM-2026-884102', status: 'paid',
+    total_charge_cents: 125000, submitted_at: '2026-07-11T00:00:00Z', reviewed_at: '2026-07-12T00:00:00Z',
+    paid_at: '2026-07-12T00:00:00Z', denied_at: null, denial_reason: null, created_by_user_id: null,
+    created_at: '2026-07-11T00:00:00Z', updated_at: '2026-07-12T00:00:00Z',
+    patient: { full_name: 'Sarah Jenkins' },
+    encounter: {
+      encounter_date: '2026-07-10',
+      provider: { full_name: 'Dr. James Wilson' },
+      encounter_diagnoses: [{ diagnosis: { code: 'R07.9' } }, { diagnosis: { code: 'I10' } }],
+    },
+    claim_lines: [
+      { id: 'line-1', organization_id: 'org-1', claim_id: 'clm-1', encounter_procedure_id: null, procedure_code: '71250', procedure_description: 'CT chest', units: 1, charge_cents: 90000, line_total_cents: 90000, status: 'approved', denial_reason: null, created_at: '2026-07-11T00:00:00Z', updated_at: '2026-07-11T00:00:00Z' },
+      { id: 'line-2', organization_id: 'org-1', claim_id: 'clm-1', encounter_procedure_id: null, procedure_code: '99214', procedure_description: 'Office visit', units: 1, charge_cents: 35000, line_total_cents: 35000, status: 'approved', denial_reason: null, created_at: '2026-07-11T00:00:00Z', updated_at: '2026-07-11T00:00:00Z' },
+    ],
+    claim_payments: [payerPayment],
+    claim_adjustments: [],
+    claim_denials: [],
+    claim_status_events: [paidEvent],
+  };
+
+  it('maps names, amounts, codes, and derived balances', () => {
     const c = mapClaim(row);
     expect(c.patientName).toBe('Sarah Jenkins');
     expect(c.providerName).toBe('Dr. James Wilson');
-    expect(c.providerNpi).toBe('1982736410');
+    expect(c.providerNpi).toBe('');
+    expect(c.totalBilled).toBe(1250);
     expect(c.planCoveredAmount).toBe(1100);
-    expect(c.patientResponsibility).toBe(30);
+    expect(c.patientResponsibility).toBe(150);
     expect(c.diagnosisCodes).toEqual(['R07.9', 'I10']);
+    expect(c.procedureCodes).toEqual(['71250', '99214']);
     expect(c.submittedDate).toBe('2026-07-11');
-    expect(c.plainEnglishExplanation).toBe('Covered at 90%.');
+    expect(c.adjudicationMethod).toBe('manual');
   });
 
-  it('degrades gracefully when joins are missing', () => {
-    const c = mapClaim({ ...row, patient: null, provider: null, plain_english_explanation: null });
+  it('degrades gracefully when the encounter/patient joins are missing', () => {
+    const c = mapClaim({ ...row, patient: null, encounter: null });
     expect(c.patientName).toBe('Unknown Patient');
+    expect(c.providerName).toBe('Unknown Provider');
     expect(c.providerNpi).toBe('');
     expect(c.plainEnglishExplanation).toBe('');
+    expect(c.diagnosisCodes).toEqual([]);
+    expect(c.serviceDate).toBe('');
   });
 
-  it('prefers denormalized names (payer view, no cross-org join)', () => {
+  it('maps a claim-level denial from claim_denials and leaves line-level denials out of the claim summary', () => {
+    const denial: ClaimDenialRow = {
+      id: 'den-1', organization_id: 'org-1', claim_id: 'clm-1', claim_line_id: null,
+      denial_code: 'MISSING_DOCS', denial_reason: 'Chart notes not received', denied_at: '2026-07-12T00:00:00Z',
+      created_by_user_id: null, created_at: '2026-07-12T00:00:00Z', updated_at: '2026-07-12T00:00:00Z',
+    };
+    const lineDenial: ClaimDenialRow = { ...denial, id: 'den-2', claim_line_id: 'line-1', denial_code: 'CODING_ERROR' };
     const c = mapClaim({
-      ...row, patient: null, provider: null,
-      patient_name: 'Sarah Jenkins', provider_name: 'Dr. James Wilson', provider_npi: '1982736410',
+      ...row, status: 'denied', denial_reason: 'Chart notes not received',
+      claim_denials: [lineDenial, denial],
+      claim_status_events: [{ ...paidEvent, to_status: 'denied', reason: '[manual] denied — MISSING_DOCS: Chart notes not received' }],
     });
-    expect(c.patientName).toBe('Sarah Jenkins');
-    expect(c.providerName).toBe('Dr. James Wilson');
-    expect(c.providerNpi).toBe('1982736410');
+    expect(c.denialCode).toBe('MISSING_DOCS');
+    expect(c.denialReason).toBe('Chart notes not received');
+    expect(c.adjudicationMethod).toBe('manual');
+  });
+
+  it('falls back to OTHER when claims.denial_reason is set but no structured claim_denials row exists', () => {
+    const c = mapClaim({ ...row, status: 'denied', denial_reason: 'Denied by payer', claim_denials: [] });
+    expect(c.denialCode).toBe('OTHER');
+    expect(c.denialReason).toBe('Denied by payer');
+  });
+
+  it('leaves adjudicationMethod undefined when no [automated]/[manual] status event exists', () => {
+    const c = mapClaim({ ...row, claim_status_events: [] });
+    expect(c.adjudicationMethod).toBeUndefined();
+  });
+
+  it('computes an auto-adjudicated claim from an [automated] status event', () => {
+    const c = mapClaim({
+      ...row,
+      claim_status_events: [{ ...paidEvent, reason: '[automated] approved and paid $1100.00' }],
+    });
+    expect(c.adjudicationMethod).toBe('automated');
+  });
+});
+
+describe('claimsBalance', () => {
+  it('never lets patientResponsibility go negative even if payments exceed the charge', async () => {
+    const { calculatePatientResponsibilityCents } = await import('../lib/claimsBalance');
+    const overpay: ClaimPaymentRow = {
+      id: 'pay-x', organization_id: 'org-1', claim_id: 'clm-1', claim_line_id: null,
+      payment_source: 'payer', payment_method: 'manual_adjudication', amount_cents: 999999,
+      reference_number: null, paid_at: '2026-07-12T00:00:00Z', posted_by_user_id: null,
+      created_at: '2026-07-12T00:00:00Z', updated_at: '2026-07-12T00:00:00Z',
+    };
+    expect(calculatePatientResponsibilityCents(125000, [overpay], [])).toBe(0);
   });
 });
 
@@ -211,12 +314,12 @@ describe('mapPriorAuth', () => {
     organization_id: 'org-1', requested_service: 'Cardiac MRI with Contrast',
     icd10_code: 'I25.10', cpt_code: '75561', status: 'approved',
     clinical_notes: 'Persistent atypical angina.', ai_recommendation: 'Approve: meets InterQual.',
-    created_at: '2026-07-21T00:00:00Z',
-    patient: { user: { full_name: 'Sarah Jenkins' } },
-    provider: { user: { full_name: 'Dr. Chloe Bennett' } },
+    created_at: '2026-07-21T00:00:00Z', updated_at: '2026-07-21T00:00:00Z',
+    patient: { full_name: 'Sarah Jenkins', insurance: baseInsurance },
+    provider: { full_name: 'Dr. Chloe Bennett' },
   };
 
-  it('maps names, codes, status, notes, and derives an auth number', () => {
+  it('maps names, codes, status, notes, payer, and derives an auth number', () => {
     const p = mapPriorAuth(row);
     expect(p.patientName).toBe('Sarah Jenkins');
     expect(p.requestingProvider).toBe('Dr. Chloe Bennett');
@@ -225,6 +328,12 @@ describe('mapPriorAuth', () => {
     expect(p.status).toBe('approved');
     expect(p.aiRecommendation).toBe('Approve: meets InterQual.');
     expect(p.authNumber).toBe('PA-AA000000');
+    expect(p.payerName).toBe('SBOS Gold Premier PPO');
+  });
+
+  it('leaves payerName undefined when the patient has no linked insurance', () => {
+    const p = mapPriorAuth({ ...row, patient: { full_name: 'Sarah Jenkins', insurance: null } });
+    expect(p.payerName).toBeUndefined();
   });
 
   it('degrades gracefully when joins are missing', () => {

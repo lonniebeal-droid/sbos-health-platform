@@ -9,7 +9,8 @@
 
 import type { TenantOrg } from '../organizationContext';
 import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, LabResultRow } from './database.types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithDetails, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithDetails, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderIdentityRow, LabResultRow } from './database.types';
+import { sumPayments, calculatePatientResponsibilityCents, parseAdjudicationMethod, centsToDollars } from '../claimsBalance';
 
 /** BenefitsPlanRow -> the UI BenefitsPlan domain type. */
 export function mapBenefitsPlan(row: BenefitsPlanRow): BenefitsPlan {
@@ -73,15 +74,23 @@ export function mapLabResult(row: LabResultRow): LabOrderDisplay {
   };
 }
 
-/** PriorAuthorizationWithNames -> the UI PriorAuth domain type. */
+/**
+ * PriorAuthorizationWithNames -> the UI PriorAuth domain type. Live
+ * `patients` carries name directly (no user join needed); the linked
+ * insurance_info row (when one exists) supplies the payer name. This table
+ * is INTERNAL TRACKING ONLY — there is no external payer submission
+ * integration (no EDI 278 transaction, no payer API call) anywhere in this
+ * app; `aiRecommendation` is a real LLM call's output, not a verified payer
+ * or clinical-guideline decision.
+ */
 export function mapPriorAuth(row: PriorAuthorizationWithNames): PriorAuth {
-  const providerName = row.provider?.user?.full_name ?? undefined;
+  const providerName = row.provider?.full_name ?? undefined;
   const date = (row.created_at ?? '').slice(0, 10);
   return {
     id: row.id,
     authNumber: `PA-${row.id.slice(0, 8).toUpperCase()}`,
-    patientId: row.patient_id ?? undefined,
-    patientName: row.patient?.user?.full_name ?? 'Unknown Patient',
+    patientId: row.patient_id,
+    patientName: row.patient?.full_name ?? 'Unknown Patient',
     requestingProvider: providerName,
     providerName,
     requestedService: row.requested_service,
@@ -95,31 +104,55 @@ export function mapPriorAuth(row: PriorAuthorizationWithNames): PriorAuth {
     clinicalNotes: row.clinical_notes ?? undefined,
     clinicalNotesSummary: row.clinical_notes ?? undefined,
     aiRecommendation: row.ai_recommendation ?? undefined,
+    payerName: row.patient?.insurance?.payer_name ?? undefined,
   };
 }
 
-/** ClaimWithNames -> the UI Claim domain type. */
-export function mapClaim(row: ClaimWithNames): Claim {
+/**
+ * ClaimWithDetails -> the UI Claim domain type.
+ *
+ * The live "SBOS HealthOS" claims table only carries the charge total and
+ * workflow timestamps — everything else (payer/patient amounts, denial
+ * detail, diagnosis/procedure codes, provider identity) is derived from the
+ * joined child tables and the linked encounter. Two UI fields have no
+ * backing data yet and are left as honest empty defaults rather than
+ * fabricated: `providerNpi` (no NPI column exists anywhere in the live
+ * schema) and `aiRiskScore`/`aiRiskFlags`/`plainEnglishExplanation` (fraud
+ * risk is computed on demand by the /api/ai/fraud-analysis endpoint, not
+ * persisted, so there is nothing to read back for the queue view).
+ */
+export function mapClaim(row: ClaimWithDetails): Claim {
+  const payments = row.claim_payments ?? [];
+  const adjustments = row.claim_adjustments ?? [];
+  const denials = row.claim_denials ?? [];
+  const events = row.claim_status_events ?? [];
+  const diagnosisCodes = row.encounter?.encounter_diagnoses ?? [];
+
+  const claimLevelDenial = denials
+    .filter((d) => d.claim_line_id === null)
+    .sort((a, b) => (a.denied_at < b.denied_at ? 1 : -1))[0] ?? null;
+
   return {
     id: row.id,
     claimNumber: row.claim_number,
-    patientId: row.patient_id ?? '',
-    // Prefer the denormalized identity carried on the claim (visible to the
-    // payer); fall back to the joined records (visible to same-org staff).
-    patientName: row.patient_name ?? row.patient?.user?.full_name ?? 'Unknown Patient',
-    providerName: row.provider_name ?? row.provider?.user?.full_name ?? 'Unknown Provider',
-    providerNpi: row.provider_npi ?? row.provider?.npi ?? '',
-    serviceDate: row.service_date,
-    submittedDate: (row.created_at ?? '').slice(0, 10),
-    diagnosisCodes: row.icd10_codes ?? [],
-    procedureCodes: row.cpt_codes ?? [],
-    totalBilled: row.total_billed,
-    planCoveredAmount: row.approved_amount,
-    patientResponsibility: row.patient_copay,
+    patientId: row.patient_id,
+    patientName: row.patient?.full_name ?? 'Unknown Patient',
+    providerName: row.encounter?.provider?.full_name ?? 'Unknown Provider',
+    providerNpi: '',
+    serviceDate: row.encounter?.encounter_date ?? '',
+    submittedDate: (row.submitted_at ?? row.created_at ?? '').slice(0, 10),
+    diagnosisCodes: diagnosisCodes.map((d) => d.diagnosis?.code).filter((c): c is string => !!c),
+    procedureCodes: (row.claim_lines ?? []).map((l) => l.procedure_code),
+    totalBilled: centsToDollars(row.total_charge_cents),
+    planCoveredAmount: centsToDollars(sumPayments(payments, 'payer')),
+    patientResponsibility: centsToDollars(calculatePatientResponsibilityCents(row.total_charge_cents, payments, adjustments)),
     status: row.status,
-    aiRiskScore: row.ai_risk_score,
-    aiRiskFlags: row.ai_risk_flags ?? [],
-    plainEnglishExplanation: row.plain_english_explanation ?? '',
+    aiRiskScore: 0,
+    aiRiskFlags: [],
+    plainEnglishExplanation: '',
+    denialCode: (claimLevelDenial?.denial_code as Claim['denialCode']) ?? (row.denial_reason ? 'OTHER' : null),
+    denialReason: claimLevelDenial?.denial_reason ?? row.denial_reason ?? null,
+    adjudicationMethod: parseAdjudicationMethod(events, row.status),
   };
 }
 
@@ -132,16 +165,22 @@ export function formatTime24to12(hhmm: string): string {
   return `${h12}:${m ?? '00'} ${period}`;
 }
 
-/** AppointmentWithNames -> the UI Appointment domain type. */
+/**
+ * AppointmentWithNames -> the UI Appointment domain type. Proposed schema
+ * (see AppointmentRow) — providerSpecialty has no live source since there is
+ * no providers table, so it is left blank here; callers that already know the
+ * specialty client-side (e.g. ProviderSearch composing from the selected
+ * Provider) can still fill it in when constructing the UI object directly.
+ */
 export function mapAppointment(row: AppointmentWithNames): Appointment {
   const iso = row.scheduled_at ?? '';
   return {
     id: row.id,
     patientId: row.patient_id ?? '',
-    patientName: row.patient?.user?.full_name ?? 'Unknown Patient',
+    patientName: row.patient?.full_name ?? 'Unknown Patient',
     providerId: row.provider_id ?? '',
-    providerName: row.provider?.user?.full_name ?? 'Unknown Provider',
-    providerSpecialty: row.provider?.specialty ?? '',
+    providerName: row.provider?.full_name ?? 'Unknown Provider',
+    providerSpecialty: '',
     date: iso.slice(0, 10),
     time: iso.length >= 16 ? formatTime24to12(iso.slice(11, 16)) : '',
     type: row.appointment_type === 'telehealth' ? 'telehealth' : 'in_person',
@@ -176,46 +215,59 @@ export function mapPrescription(row: PrescriptionWithProvider): Prescription {
 
 const EMPTY_VITALS = { bloodPressure: '—', heartRate: 0, spO2: 0, weightLbs: 0, date: '—' };
 
-/** PatientWithUser (row + joined profile) -> the EHR Patient domain type. */
-export function mapPatient(row: PatientWithUser): Patient {
+/**
+ * PatientWithDetails -> the EHR Patient domain type. Live `patients` carries
+ * name/dob/gender/phone/email/address directly (no user join needed);
+ * insurance member ID / group number come from the joined insurance_info row
+ * when one exists. Clinical fields with no live table yet (blood type,
+ * allergies, chronic conditions, vitals, family members, PCP) are left as
+ * honest empty states rather than fabricated.
+ */
+export function mapPatient(row: PatientWithDetails): Patient {
   return {
     id: row.id,
-    name: row.user?.full_name ?? 'Unknown Patient',
-    dob: row.dob,
+    name: row.full_name || 'Unknown Patient',
+    dob: row.date_of_birth ?? '',
     gender: row.gender ?? '',
-    phone: row.user?.phone ?? '',
-    email: row.user?.email ?? '',
+    phone: row.phone ?? '',
+    email: row.email ?? '',
     address: row.address ?? '',
-    insuranceId: row.insurance_member_id,
-    policyGroup: row.policy_group_number,
-    primaryCarePhysician: row.primary_care_physician ?? '',
-    bloodType: row.blood_type ?? '',
-    allergies: row.allergies ?? [],
-    chronicConditions: row.chronic_conditions ?? [],
-    recentVitals: row.recent_vitals ?? EMPTY_VITALS,
-    familyMembers: row.family_members ?? [],
+    insuranceId: row.insurance?.member_id ?? '',
+    policyGroup: row.insurance?.group_number ?? '',
+    primaryCarePhysician: '',
+    bloodType: '',
+    allergies: [],
+    chronicConditions: [],
+    recentVitals: EMPTY_VITALS,
+    familyMembers: [],
   };
 }
 
-/** ProviderWithUser -> Provider search display model; missing profile fields stay explicit placeholders. */
-export function mapProvider(row: ProviderWithUser): Provider {
-  const name = row.user?.full_name ?? 'Unknown Provider';
+/**
+ * ProviderIdentityRow (users where role = 'provider') -> Provider search
+ * display model. There is no providers table live, so specialty/NPI/license/
+ * fee/accepting-new-patients have no source and stay honest placeholders —
+ * `inNetwork`/`acceptsNewPatients` default true is a pre-existing UI
+ * convention in this mapper (not new), not a claim about verified data.
+ */
+export function mapProvider(row: ProviderIdentityRow): Provider {
+  const name = row.full_name || 'Unknown Provider';
   return {
     id: row.id,
     name,
-    specialty: row.specialty,
-    npi: row.npi,
+    specialty: '',
+    npi: '',
     rating: 0,
     reviewCount: 0,
     inNetwork: true,
     hospitalAffiliation: row.organization_id ? 'Organization network' : 'Network not assigned',
     address: '',
-    phone: row.user?.phone ?? '',
+    phone: '',
     nextAvailableSlot: 'Check scheduling',
     avatar: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`,
-    acceptsNewPatients: row.accepting_new_patients,
-    bio: `Licensed ${row.specialty} provider. Live row loaded from the providers table.`,
-    education: `License ${row.license_number}`,
+    acceptsNewPatients: true,
+    bio: `Live provider — no specialty/bio data captured yet (no providers table in the live schema).`,
+    education: '',
   };
 }
 
@@ -226,12 +278,20 @@ const ORG_TYPE_BADGE: Record<DbOrgType, string> = {
   clinic: 'Clinic Network',
 };
 
-/** OrganizationRow -> the org-context TenantOrg view. Faithful. */
+/**
+ * OrganizationRow -> the org-context TenantOrg view. Live organizations has
+ * no `type`/`tax_id`/`npi` columns yet (cosmetic-only, not access control —
+ * see the DbOrgType comment) — when absent, `type` defaults to
+ * 'health_system' (a neutral, non-privileged bucket; it never defaults to
+ * 'payer' so a row we know nothing about never silently unlocks payer-tier
+ * display) and the badge honestly reads 'Organization' instead of a specific
+ * classification we don't have.
+ */
 export function mapOrganizationToTenantOrg(row: OrganizationRow): TenantOrg {
   // TenantOrg.type has no 'clinic' member; collapse clinic into health_system
   // for the context's coarse grouping (display badge still shows "Clinic Network").
   const type: TenantOrg['type'] =
-    row.type === 'clinic' ? 'health_system' : row.type;
+    !row.type ? 'health_system' : row.type === 'clinic' ? 'health_system' : row.type;
 
   const npiOrTaxId = row.npi
     ? `NPI: ${row.npi}`
@@ -243,7 +303,7 @@ export function mapOrganizationToTenantOrg(row: OrganizationRow): TenantOrg {
     id: row.id,
     name: row.name,
     type,
-    badge: ORG_TYPE_BADGE[row.type],
+    badge: row.type ? ORG_TYPE_BADGE[row.type] : 'Organization',
     npiOrTaxId,
   };
 }
