@@ -10,7 +10,7 @@
 -- old flat schema, rather than forcing a premature FK to an encounter that
 -- doesn't exist yet.
 
-CREATE TABLE public.prior_authorizations (
+CREATE TABLE IF NOT EXISTS public.prior_authorizations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id),
   patient_id uuid NOT NULL REFERENCES public.patients(id),
@@ -26,5 +26,5 @@ CREATE TABLE public.prior_authorizations (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX prior_authorizations_organization_id_idx ON public.prior_authorizations(organization_id);
-CREATE INDEX prior_authorizations_patient_id_idx ON public.prior_authorizations(patient_id);
+CREATE INDEX IF NOT EXISTS prior_authorizations_organization_id_idx ON public.prior_authorizations(organization_id);
+CREATE INDEX IF NOT EXISTS prior_authorizations_patient_id_idx ON public.prior_authorizations(patient_id);

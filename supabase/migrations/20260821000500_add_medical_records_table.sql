@@ -6,7 +6,7 @@
 -- This is a patient-facing record index (chart summary/imaging/immunization
 -- entries), distinct from the clinical `encounters` table.
 
-CREATE TABLE public.medical_records (
+CREATE TABLE IF NOT EXISTS public.medical_records (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id),
   patient_id uuid NOT NULL REFERENCES public.patients(id),
@@ -24,5 +24,5 @@ CREATE TABLE public.medical_records (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX medical_records_organization_id_idx ON public.medical_records(organization_id);
-CREATE INDEX medical_records_patient_id_idx ON public.medical_records(patient_id);
+CREATE INDEX IF NOT EXISTS medical_records_organization_id_idx ON public.medical_records(organization_id);
+CREATE INDEX IF NOT EXISTS medical_records_patient_id_idx ON public.medical_records(patient_id);

@@ -9,7 +9,7 @@ also the repo-root [`SECURITY_AUDIT.md`](../../SECURITY_AUDIT.md).
 | ------- | ----- | ----- |
 | Signed BAA (hosting + model provider) | ❌ | Required before any real PHI. Business/legal. |
 | Access control (authN) | 🟡 | Supabase Auth for the app; AI endpoints unauthenticated. |
-| Access control (authZ) | 🟡 | Postgres RLS by org/role; seeded auth/org + patient/audit cases now locally verified, broader parity still pending. |
+| Access control (authZ) | 🟡 | Postgres RLS by org/role; seeded auth/org + patient/audit cases and profile-escalation resistance are locally verified, broader parity still pending. |
 | Encryption in transit | 🟡 | HSTS set in prod; TLS terminated by the host (not provisioned). |
 | Encryption at rest | ⛔ | Provided by hosted Supabase once provisioned. |
 | Audit logging | 🟡 | `audit_logs` table + repo; not written on all mutations. |
@@ -31,6 +31,9 @@ Legend: ✅ done · 🟡 partial · ❌ missing · ⛔ blocked on infra/business
 - **Tenant isolation**: RLS keyed on `current_user_org_id()` / role. Seeded
   provider/payer auth mapping, cross-tenant patient isolation, and audit-log
   append-only behavior are now reproducibly verified with `npm run verify:rls`.
+- **Profile provisioning**: signup metadata cannot select a tenant or privileged
+  role. New profiles are unassigned `patient` records until a trusted
+  administrative path assigns access; client updates are limited to name/phone.
 - **Secret hygiene in repo**: no service-role key in client code; terraform DB
   password removed from the tree; `.env`/tfvars gitignored.
 - **CI**: least-privilege `GITHUB_TOKEN` (`contents: read`); `npm audit` = 0
@@ -40,7 +43,7 @@ Legend: ✅ done · 🟡 partial · ❌ missing · ⛔ blocked on infra/business
 
 | Asset | Threat | Mitigation | Residual risk |
 | ----- | ------ | ---------- | ------------- |
-| PHI in Postgres | Cross-tenant read | RLS by org/role + local verifier | Broader table/view parity still incomplete → **medium** |
+| PHI in Postgres | Cross-tenant read or self-assigned privilege | RLS by org/role, restricted profile writes + local verifier | Broader table/view parity still incomplete → **medium** |
 | AI endpoints | Abuse / cost / prompt injection | Rate limit + input caps | Unauthenticated → **medium/high** |
 | Request bodies | Oversized/malformed DoS | 256kb cap + correct 4xx | Low |
 | Secrets | Leak via repo/image | gitignore + dev deps pruned from image | Historical terraform pwd in git history → **medium** |
@@ -52,7 +55,7 @@ Legend: ✅ done · 🟡 partial · ❌ missing · ⛔ blocked on infra/business
    the JWT secret).
 2. **Historical terraform DB password in git history** — must be **rotated**.
 3. **No CSP** — author against the SPA's real needs (Supabase, Gemini, WebRTC).
-4. **RLS parity still incomplete** outside the seeded auth/org + patient/audit verification path.
+4. **RLS parity still incomplete** outside the seeded auth/org + patient/audit/profile verification path.
 5. **In-memory rate limiter** — bypassable across multiple instances (needs Redis).
 
 ## Required before production with PHI

@@ -5,23 +5,25 @@ Runner: **Vitest** (node environment, default config — no `vitest.config.ts`;
 
 ## Current test inventory
 
-Canonical repo-owned tests in this checkout: **58 tests across 5 files**, plus
+Canonical repo-owned tests in this checkout: **121 tests across 7 files**, plus
 the local DB verifier below.
 
 Note: on August 21, 2026, `npm test` in this workspace also traversed mirrored
-files under `.claude/worktrees/claims`, so Vitest reported **113 tests across 8
+files under `.claude/worktrees/claims`, so Vitest reported **176 tests across 10
 files**. That is runner behavior in this checkout, not the canonical repo-owned
 inventory.
 
 | File | Tests | Lane | Covers |
 | ---- | ----- | ---- | ------ |
-| `src/tests/mappers.test.ts` | 22 | frontend | row → domain type mapping |
+| `src/tests/mappers.test.ts` | 36 | frontend | row → domain type mapping |
 | `src/tests/permissions.test.ts` | 14 | frontend | RBAC matrix / access gates |
-| `src/tests/dataLayer.test.ts` | 10 | frontend | repository/data-layer behavior |
+| `src/tests/dataLayer.test.ts` | 45 | frontend | repository/data-layer behavior |
 | `src/tests/appWiring.test.ts` | 1 | frontend | Jessie role wiring |
+| `src/tests/claimsAutomation.test.ts` | 10 | frontend | claims automation + denial handling |
+| `src/tests/roleMapping.test.ts` | 4 | frontend | live role normalization |
 | `tests/server.test.ts` | 11 | backend | rate limiter, Gemini client memoization, JSON parser |
-| `scripts/verify-rls.sh` | n/a | database | local Supabase RLS/auth mapping and audit-log immutability |
-| **Total** | **58** | | |
+| `scripts/verify-rls.sh` | n/a | database | local Supabase RLS/auth mapping, profile hardening, and audit-log immutability |
+| **Total** | **121** | | |
 
 Verify counts: `for f in src/tests/*.test.ts tests/*.test.ts; do echo "$f"; grep -cE '\b(it|test)\(' "$f"; done`
 
@@ -43,8 +45,9 @@ Verify counts: `for f in src/tests/*.test.ts tests/*.test.ts; do echo "$f"; grep
    `/api/health` 200, `/api/docs/openapi.json` 200, `/` 200, removed route 404,
    malformed→400, missing→400, oversized→413.
 3. **Database isolation → local Supabase RLS verifier.** Requires `supabase start`
-   plus a local reset; proves auth-to-org mapping, cross-tenant patient isolation,
-   and append-only audit-log behavior against the seeded DB.
+   plus a local reset; proves auth-to-org mapping, rejected signup/profile
+   escalation, cross-tenant patient isolation, and append-only audit-log behavior
+   against the seeded DB.
 4. **Typecheck as a gate** — `tsc --noEmit` in CI.
 
 ## Notable gaps / remaining tests

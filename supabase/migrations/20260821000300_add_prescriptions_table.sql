@@ -4,7 +4,7 @@
 -- PROPOSED — NOT APPLIED. Written for review; apply only after explicit
 -- confirmation. No live equivalent exists (confirmed via introspection).
 
-CREATE TABLE public.prescriptions (
+CREATE TABLE IF NOT EXISTS public.prescriptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id),
   patient_id uuid NOT NULL REFERENCES public.patients(id),
@@ -20,5 +20,5 @@ CREATE TABLE public.prescriptions (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX prescriptions_organization_id_idx ON public.prescriptions(organization_id);
-CREATE INDEX prescriptions_patient_id_idx ON public.prescriptions(patient_id);
+CREATE INDEX IF NOT EXISTS prescriptions_organization_id_idx ON public.prescriptions(organization_id);
+CREATE INDEX IF NOT EXISTS prescriptions_patient_id_idx ON public.prescriptions(patient_id);

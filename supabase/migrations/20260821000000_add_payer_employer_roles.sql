@@ -16,10 +16,23 @@
 -- existing allow-list, it does not remove or reinterpret any value already
 -- in use, so no existing row or code path is affected.
 
-ALTER TABLE public.users
-  DROP CONSTRAINT users_role_check,
-  ADD CONSTRAINT users_role_check
-    CHECK (role = ANY (ARRAY[
-      'admin', 'provider', 'medical_biller', 'coder', 'front_desk', 'staff', 'patient',
-      'insurance', 'employer'
-    ]::text[]));
+-- The repository schema stores role as public.user_role, which already has
+-- insurance/employer. The previously inspected live schema used a text CHECK.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.users'::regclass
+      AND conname = 'users_role_check'
+  ) THEN
+    ALTER TABLE public.users
+      DROP CONSTRAINT users_role_check,
+      ADD CONSTRAINT users_role_check
+        CHECK (role = ANY (ARRAY[
+          'admin', 'provider', 'medical_biller', 'coder', 'front_desk', 'staff', 'patient',
+          'insurance', 'employer'
+        ]::text[]));
+  END IF;
+END
+$$;

@@ -14,6 +14,7 @@ ORG_A_ID="11111111-1111-1111-1111-111111111111"
 ORG_B_ID="22222222-2222-2222-2222-222222222222"
 PROVIDER_USER_ID="a0000000-0000-0000-0000-000000000001"
 PAYER_USER_ID="a0000000-0000-0000-0000-000000000003"
+UNTRUSTED_USER_ID="a0000000-0000-0000-0000-000000000099"
 
 db_sql() {
   docker exec "$DB_CONTAINER" psql -U postgres -d postgres -X -q -A -t -v ON_ERROR_STOP=1 -c "$1"
@@ -53,6 +54,7 @@ assert_contains() {
 
 cleanup() {
   db_sql "delete from public.patients where id = '$TEMP_PATIENT_ID';" >/dev/null
+  db_sql "delete from auth.users where id = '$UNTRUSTED_USER_ID';" >/dev/null
 }
 trap cleanup EXIT
 
@@ -64,9 +66,24 @@ echo "Using DB container: $DB_CONTAINER"
 # Seed a second-tenant row so the verifier can prove isolation both ways.
 db_sql "
   delete from public.patients where id = '$TEMP_PATIENT_ID';
+  delete from auth.users where id = '$UNTRUSTED_USER_ID';
   insert into public.patients (id, organization_id, dob, insurance_member_id, policy_group_number)
   values ('$TEMP_PATIENT_ID', '$ORG_B_ID', '1990-01-01', 'TEMP-ORG2-001', 'TEMP-GROUP');
+  insert into auth.users (
+    instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+    confirmation_token, recovery_token, email_change_token_new, email_change
+  ) values (
+    '00000000-0000-0000-0000-000000000000', '$UNTRUSTED_USER_ID', 'authenticated', 'authenticated',
+    'untrusted-profile@local.test', crypt('Password123!', gen_salt('bf')), now(),
+    jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email')),
+    jsonb_build_object('full_name', 'Untrusted Signup', 'role', 'admin', 'organization_id', '$ORG_A_ID'),
+    now(), now(), '', '', '', ''
+  );
 " >/dev/null
+
+untrusted_profile="$(db_sql "select coalesce(organization_id::text, 'unassigned') || '|' || role::text from public.users where id = '$UNTRUSTED_USER_ID';")"
+assert_eq "signup metadata cannot assign an org or privileged role" "unassigned|patient" "$untrusted_profile"
 
 provider_mapping="$(session_sql "$PROVIDER_USER_ID" "select public.current_user_org_id()::text || '|' || public.current_user_role()::text;")"
 provider_mapping="$(printf '%s\n' "$provider_mapping" | tail -n 2 | head -n 1)"
@@ -96,6 +113,10 @@ payer_cross_tenant_read="$(session_sql "$PAYER_USER_ID" "select count(*) from pu
 payer_cross_tenant_read="$(printf '%s\n' "$payer_cross_tenant_read" | tail -n 2 | head -n 1)"
 assert_eq "payer cannot read org A patient row" "0" "$payer_cross_tenant_read"
 
+untrusted_patient_count="$(session_sql "$UNTRUSTED_USER_ID" "select count(*) from public.patients;")"
+untrusted_patient_count="$(printf '%s\n' "$untrusted_patient_count" | tail -n 2 | head -n 1)"
+assert_eq "unassigned signup cannot read patient rows" "0" "$untrusted_patient_count"
+
 provider_cross_tenant_update="$(session_sql "$PROVIDER_USER_ID" "update public.patients set address = 'blocked' where id = '$TEMP_PATIENT_ID'; select count(*) from public.patients where id = '$TEMP_PATIENT_ID' and address = 'blocked';")"
 provider_cross_tenant_update="$(printf '%s\n' "$provider_cross_tenant_update" | tail -n 2 | head -n 1)"
 assert_eq "provider cannot modify org B patient row" "0" "$provider_cross_tenant_update"
@@ -123,6 +144,12 @@ provider_audit_delete="$(
     2>&1
 )"
 provider_audit_delete_status=$?
+provider_profile_escalation="$(
+  docker exec "$DB_CONTAINER" psql -U postgres -d postgres -X -q -A -t -v ON_ERROR_STOP=1 -c \
+    "begin; set local role authenticated; set local \"request.jwt.claim.sub\" = '$PROVIDER_USER_ID'; update public.users set role = 'admin', organization_id = '$ORG_B_ID' where id = '$PROVIDER_USER_ID'; rollback;" \
+    2>&1
+)"
+provider_profile_escalation_status=$?
 set -e
 
 if [ "$cross_tenant_status" -eq 0 ]; then
@@ -142,5 +169,11 @@ if [ "$provider_audit_delete_status" -eq 0 ]; then
   exit 1
 fi
 assert_contains "provider cannot delete audit logs" "permission denied for table audit_logs" "$provider_audit_delete"
+
+if [ "$provider_profile_escalation_status" -eq 0 ]; then
+  echo "FAIL: provider profile privilege escalation unexpectedly succeeded" >&2
+  exit 1
+fi
+assert_contains "provider cannot change role or organization" "permission denied for table users" "$provider_profile_escalation"
 
 echo "All RLS checks passed."

@@ -7,7 +7,7 @@
 -- rather than a guessed CHECK list, since lab-result workflow states vary
 -- by integration and there's no existing usage to confirm the real set.
 
-CREATE TABLE public.lab_results (
+CREATE TABLE IF NOT EXISTS public.lab_results (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id),
   patient_id uuid NOT NULL REFERENCES public.patients(id),
@@ -22,5 +22,5 @@ CREATE TABLE public.lab_results (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX lab_results_organization_id_idx ON public.lab_results(organization_id);
-CREATE INDEX lab_results_patient_id_idx ON public.lab_results(patient_id);
+CREATE INDEX IF NOT EXISTS lab_results_organization_id_idx ON public.lab_results(organization_id);
+CREATE INDEX IF NOT EXISTS lab_results_patient_id_idx ON public.lab_results(patient_id);

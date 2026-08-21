@@ -21,7 +21,7 @@
 -- this project today (see the RLS-disabled advisory flagged separately) —
 -- not fixed as part of this migration.
 
-CREATE TABLE public.appointments (
+CREATE TABLE IF NOT EXISTS public.appointments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id),
   patient_id uuid NOT NULL REFERENCES public.patients(id),
@@ -37,7 +37,7 @@ CREATE TABLE public.appointments (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX appointments_organization_id_idx ON public.appointments(organization_id);
-CREATE INDEX appointments_patient_id_idx ON public.appointments(patient_id);
-CREATE INDEX appointments_provider_id_idx ON public.appointments(provider_id);
-CREATE INDEX appointments_scheduled_at_idx ON public.appointments(scheduled_at);
+CREATE INDEX IF NOT EXISTS appointments_organization_id_idx ON public.appointments(organization_id);
+CREATE INDEX IF NOT EXISTS appointments_patient_id_idx ON public.appointments(patient_id);
+CREATE INDEX IF NOT EXISTS appointments_provider_id_idx ON public.appointments(provider_id);
+CREATE INDEX IF NOT EXISTS appointments_scheduled_at_idx ON public.appointments(scheduled_at);
