@@ -110,9 +110,10 @@ export interface PatientWithDetails extends PatientRow {
   insurance: InsuranceInfoRow | null;
 }
 
-/** A prescription with the prescribing provider's name (via provider->user). */
+/** A prescription with the prescribing provider's name. No providers table
+ * live — provider_id points straight at users.id (role = 'provider'). */
 export interface PrescriptionWithProvider extends PrescriptionRow {
-  provider: { user: { full_name: string } | null } | null;
+  provider: { full_name: string } | null;
 }
 
 /** An appointment with patient + provider display names. Proposed schema — see AppointmentRow. */
@@ -286,9 +287,9 @@ export interface PriorAuthorizationWithNames extends PriorAuthorizationRow {
 
 export interface PrescriptionRow {
   id: string;
-  patient_id: string | null;
-  provider_id: string | null;
-  organization_id: string | null;
+  organization_id: string;
+  patient_id: string;
+  provider_id: string;
   medication_name: string;
   dosage: string;
   frequency: string;
@@ -296,6 +297,7 @@ export interface PrescriptionRow {
   status: DbRxStatus;
   pharmacy_name: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface PriorAuthorizationRow {
@@ -313,17 +315,22 @@ export interface PriorAuthorizationRow {
   updated_at: string;
 }
 
+// Internal lab result tracking only — there is no external lab vendor (e.g.
+// Quest/Labcorp) or HL7/FHIR ingestion integration anywhere in this app.
+// `status` stays unconstrained text (matches the live CHECK-free column).
 export interface LabResultRow {
   id: string;
-  patient_id: string | null;
+  organization_id: string;
+  patient_id: string;
   ordering_provider_id: string | null;
-  organization_id: string | null;
   loinc_code: string;
   test_name: string;
   result_value: string;
   reference_range: string | null;
   status: string;
   result_date: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export type DbMedicalRecordType = 'Lab Result' | 'Immunization' | 'Visit Summary' | 'Imaging';

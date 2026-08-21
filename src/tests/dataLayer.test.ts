@@ -245,6 +245,86 @@ describe('repositories', () => {
     expect(seenOps).toContainEqual(['update', { status: 'refill_requested' }]);
   });
 
+  it('prescriptions.listDetailed joins the prescribing provider from users (no live providers table)', async () => {
+    let seenTable = '';
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((table, ops) => {
+      seenTable = table; seenOps = ops;
+      return { data: [{ id: 'rx1', medication_name: 'Atorvastatin', provider: { full_name: 'Dr. James Wilson' } }], error: null };
+    }));
+    const rows = await repos.prescriptions.listDetailed();
+    expect(seenTable).toBe('prescriptions');
+    expect(seenOps).toContainEqual(['select', '*, provider:users(full_name)']);
+    expect(seenOps).toContainEqual(['order', 'created_at']);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('prescriptions.listDetailed returns an empty array (not an error) when the patient has no prescriptions yet', async () => {
+    const repos = createRepositories(fakeClient(() => ({ data: [], error: null })));
+    expect(await repos.prescriptions.listDetailed()).toEqual([]);
+  });
+
+  it('prescriptions repository surfaces a Postgrest FK-violation error (e.g. from an invalid patient_id write) instead of silently succeeding', async () => {
+    const repos = createRepositories(fakeClient(() => ({
+      data: null,
+      error: { message: 'insert or update on table "prescriptions" violates foreign key constraint "prescriptions_patient_id_fkey"' },
+    })));
+    await expect(repos.prescriptions.listDetailed()).rejects.toThrow(/foreign key constraint/);
+  });
+
+  // Same caveat as claims/patients/prior-auths above: scoping depends entirely
+  // on RLS, which is disabled on the live project today.
+  it('prescriptions.listDetailed does not itself filter by organization_id', async () => {
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((_t, ops) => {
+      seenOps = ops;
+      return { data: [], error: null };
+    }));
+    await repos.prescriptions.listDetailed();
+    expect(seenOps.some((op) => op[0] === 'eq' && op[1] === 'organization_id')).toBe(false);
+  });
+
+  it('labResults.list orders by result_date and returns status/result fields as stored (unconstrained status column)', async () => {
+    let seenTable = '';
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((table, ops) => {
+      seenTable = table; seenOps = ops;
+      return {
+        data: [{ id: 'lab-1', status: 'pending_review', result_value: '92 mg/dL', result_date: '2026-08-01' }],
+        error: null,
+      };
+    }));
+    const rows = await repos.labResults.list();
+    expect(seenTable).toBe('lab_results');
+    expect(seenOps).toContainEqual(['order', 'result_date']);
+    expect(rows[0].status).toBe('pending_review');
+  });
+
+  it('labResults.list returns an empty array (not an error) when the patient has no lab results yet', async () => {
+    const repos = createRepositories(fakeClient(() => ({ data: [], error: null })));
+    expect(await repos.labResults.list()).toEqual([]);
+  });
+
+  it('labResults repository surfaces a Postgrest FK-violation error (e.g. from an invalid patient_id) instead of silently succeeding', async () => {
+    const repos = createRepositories(fakeClient(() => ({
+      data: null,
+      error: { message: 'insert or update on table "lab_results" violates foreign key constraint "lab_results_patient_id_fkey"' },
+    })));
+    await expect(repos.labResults.list()).rejects.toThrow(/foreign key constraint/);
+  });
+
+  // Same caveat as claims/patients/prior-auths/prescriptions above: scoping
+  // depends entirely on RLS, which is disabled on the live project today.
+  it('labResults.list does not itself filter by organization_id', async () => {
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((_t, ops) => {
+      seenOps = ops;
+      return { data: [], error: null };
+    }));
+    await repos.labResults.list();
+    expect(seenOps.some((op) => op[0] === 'eq' && op[1] === 'organization_id')).toBe(false);
+  });
+
   it('priorAuths.create inserts a new prior authorization row', async () => {
     let seenTable = '';
     let seenOps: unknown[][] = [];

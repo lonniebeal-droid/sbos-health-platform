@@ -63,13 +63,19 @@ export const PrescriptionsView: React.FC = () => {
               {usingLive ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
               {usingLive ? 'Live prescriptions' : 'Demo prescriptions'}
             </span>
+            <span
+              title="No e-prescribing network (e.g. Surescripts) integration exists yet — nothing here is ever sent to a real pharmacy."
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-200 border border-slate-400/30"
+            >
+              Internal tracking only
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
             {loading
               ? 'Loading prescriptions...'
               : error
                 ? `Could not load live prescriptions (${error}); showing demo data.`
-                : 'Manage active Rx medications and track remaining refills. Live pharmacy routing is not configured yet.'}
+                : 'Track active Rx medications and remaining refills. No real e-prescribing or pharmacy transmission is configured — refill requests are tracked internally only.'}
           </p>
         </div>
       </div>
@@ -128,7 +134,8 @@ export const PrescriptionsView: React.FC = () => {
 
             {requestSuccess === rx.id ? (
               <div className="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold text-center flex items-center justify-center gap-1.5">
-                <CheckCircle className="w-4 h-4" /> Demo refill request queued. Live pharmacy transmission is not configured yet.
+                <CheckCircle className="w-4 h-4" />
+                {usingLive ? 'Refill request recorded.' : 'Demo refill request queued.'} No real pharmacy transmission is configured yet.
               </div>
             ) : (
               <button
@@ -137,7 +144,9 @@ export const PrescriptionsView: React.FC = () => {
                 className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white text-xs font-bold shadow-xs transition-colors flex items-center justify-center gap-2"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                {rx.status === 'refill_requested' ? 'Demo Refill Order In Process' : 'Request Demo Pharmacy Refill'}
+                {rx.status === 'refill_requested'
+                  ? 'Refill Request Recorded'
+                  : usingLive ? 'Request Refill (Internal Tracking)' : 'Request Demo Refill'}
               </button>
             )}
 

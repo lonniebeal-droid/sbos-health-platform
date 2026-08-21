@@ -306,15 +306,18 @@ export function createRepositories(client: SupabaseClient) {
 
     prescriptions: {
       ...crud<PrescriptionRow>(client, 'prescriptions'),
-      /** Prescriptions with the prescribing provider's name. */
+      /** Prescriptions with the prescribing provider's name. No live providers
+       * table — provider_id points straight at users.id. */
       async listDetailed(): Promise<PrescriptionWithProvider[]> {
         return unwrap<PrescriptionWithProvider[]>(
           await client
             .from('prescriptions')
-            .select('*, provider:providers(user:users(full_name))')
+            .select('*, provider:users(full_name)')
             .order('created_at'),
         );
       },
+      /** Internal refill-request tracking only — there is no e-prescribing
+       * network integration, so this never transmits to a real pharmacy. */
       async requestRefill(id: string): Promise<PrescriptionRow> {
         return unwrap<PrescriptionRow>(
           await client.from('prescriptions')

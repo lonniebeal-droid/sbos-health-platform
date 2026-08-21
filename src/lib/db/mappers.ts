@@ -59,14 +59,18 @@ export interface LabOrderDisplay {
   source: 'live' | 'demo';
 }
 
-/** LabResultRow -> the lab workflow display model. */
+/**
+ * LabResultRow -> the lab workflow display model. Internal lab result
+ * tracking only — there is no external lab vendor or HL7/FHIR ingestion
+ * integration, so `facility` never claims a real connected lab interface.
+ */
 export function mapLabResult(row: LabResultRow): LabOrderDisplay {
   const referenceRange = row.reference_range ? ` Reference range: ${row.reference_range}` : '';
   return {
     id: row.id,
     testName: row.test_name,
     loinc: row.loinc_code,
-    facility: 'Connected lab result',
+    facility: 'Internal record (no external lab interface configured)',
     status: row.status,
     date: row.result_date,
     result: `${row.result_value}${referenceRange}`,
@@ -198,15 +202,20 @@ const RX_STATUS_MAP: Record<DbRxStatus, Prescription['status']> = {
   discontinued: 'completed',
 };
 
-/** PrescriptionWithProvider -> the UI Prescription domain type. */
+/**
+ * PrescriptionWithProvider -> the UI Prescription domain type. Internal
+ * medication tracking only — there is no e-prescribing network (e.g.
+ * Surescripts) integration anywhere in this app, so nothing here is ever
+ * transmitted to a real pharmacy.
+ */
 export function mapPrescription(row: PrescriptionWithProvider): Prescription {
   return {
     id: row.id,
-    patientId: row.patient_id ?? undefined,
+    patientId: row.patient_id,
     medicationName: row.medication_name,
     dosage: row.dosage,
     frequency: row.frequency,
-    prescribedBy: row.provider?.user?.full_name ?? 'Unknown Provider',
+    prescribedBy: row.provider?.full_name ?? 'Unknown Provider',
     refillsRemaining: row.refills_remaining,
     pharmacyName: row.pharmacy_name ?? '',
     status: RX_STATUS_MAP[row.status],

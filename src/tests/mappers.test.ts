@@ -176,7 +176,8 @@ describe('mapPrescription', () => {
     pharmacy_name: 'Mission Pharmacy',
     status: 'active',
     created_at: '2026-07-22T00:00:00Z',
-    provider: { user: { full_name: 'Dr. James Wilson' } },
+    updated_at: '2026-07-22T00:00:00Z',
+    provider: { full_name: 'Dr. James Wilson' },
   };
 
   it('maps live prescriptions with provider and pharmacy details', () => {
@@ -197,6 +198,10 @@ describe('mapPrescription', () => {
   it('collapses expired and discontinued rows to completed in the UI', () => {
     expect(mapPrescription({ ...row, status: 'expired' }).status).toBe('completed');
     expect(mapPrescription({ ...row, status: 'discontinued' }).status).toBe('completed');
+  });
+
+  it('falls back to Unknown Provider when the provider join is missing (no live providers table)', () => {
+    expect(mapPrescription({ ...row, provider: null }).prescribedBy).toBe('Unknown Provider');
   });
 });
 
@@ -374,21 +379,29 @@ describe('mapLabResult', () => {
     reference_range: '4.0-5.6%',
     status: 'completed',
     result_date: '2026-07-20',
+    created_at: '2026-07-20T00:00:00Z',
+    updated_at: '2026-07-20T00:00:00Z',
   };
 
-  it('maps live lab results to the lab workflow display model', () => {
+  it('maps live lab results to the lab workflow display model, labeled as internal tracking (no external lab interface)', () => {
     const lab = mapLabResult(row);
     expect(lab).toMatchObject({
       id: 'lab-result-1',
       testName: 'Hemoglobin A1c',
       loinc: '4548-4',
-      facility: 'Connected lab result',
       status: 'completed',
       date: '2026-07-20',
       source: 'live',
     });
+    expect(lab.facility).not.toBe('Connected lab result');
+    expect(lab.facility).not.toMatch(/quest|labcorp/i);
     expect(lab.result).toContain('5.4%');
     expect(lab.result).toContain('Reference range: 4.0-5.6%');
+  });
+
+  it('omits the reference range note when the row has none', () => {
+    const lab = mapLabResult({ ...row, reference_range: null });
+    expect(lab.result).toBe('5.4%');
   });
 });
 
