@@ -14,19 +14,21 @@ The first 18 filenames and SQL bodies below were recovered from the live
 project's `supabase_migrations.schema_migrations` ledger, including its
 recorded `statements` arrays, and match its version + name entries 1:1. This
 is historical source recovery, not an inferred baseline from live schema
-introspection. The final forward migration aligns the locally replayed table
-privileges with the RLS model; it has not been applied to the hosted project
-and must go through normal review and deployment. An earlier, unrelated
+introspection. Two forward source-only migrations align locally replayed table
+privileges with the RLS model and add patient-access/reference-integrity
+hardening. Neither has been applied to the hosted project and both must go
+through normal review and deployment. An earlier, unrelated
 migration lineage
 (`20260724000000_enterprise_schema.sql`, `20260725000000_auth_integration_rls.sql`,
-and four more `20260725*` files) was removed from this repo entirely — it
-was never applied to the live project, does not correspond to any entry in
-the ledger, and described a schema this project does not have (a `providers`
-table, a `user_role` enum, `payer_organization_id` on claims,
+and four more `20260725*` files) was moved out of the active
+`supabase/migrations/` directory into `supabase/legacy-migrations/` for audit
+only. It was never applied to the live project, does not correspond to any
+entry in the ledger, and described a schema this project does not have (a
+`providers` table, a `user_role` enum, `payer_organization_id` on claims,
 `phone`/`password_hash` on `users`). A later orphan file with the same
 problem (`20260821172346_secure_profile_provisioning_and_audit_schema.sql`,
-also never applied) was likewise removed rather than renamed, since it has
-no corresponding ledger entry to rename it to.
+also never applied) is retained in that audit-only directory rather than
+renamed, since it has no corresponding ledger entry.
 
 | Migration | Adds |
 | --------- | ---- |
@@ -49,11 +51,15 @@ no corresponding ledger entry to rename it to.
 | `20260821183307_allow_unassigned_users_nullable_org.sql` | Fixes `users.organization_id` from `NOT NULL` to nullable — required for `handle_new_user()`'s "new signups are unassigned" design to actually work |
 | `20260821183723_per_role_write_rbac.sql` | Per-role write policies (see RLS section below) |
 | `20260821193545_align_rls_table_grants.sql` | Forward migration for the DML grants required for RLS to evaluate after a fresh replay; intentionally excludes `TRUNCATE` and `TRIGGER` permissions |
+| `20260821195319_harden_patient_access_and_reference_integrity.sql` | Forward hardening for patient self-only reads, audit-log integrity, no API deletes, and tenant-scoped foreign-key enforcement |
 
-Apply locally with `supabase db reset` (or `supabase db push` against a
-target) — this now actually reconstructs the live schema and matches the
-hosted ledger version-for-version; it did not before the five
-`20260819*` foundational migrations above were added.
+Use `supabase db reset --local` to rebuild an empty local database from the
+active migrations and verify fresh-replay behavior. Use `supabase db push`
+only to apply pending migrations to an already-existing linked target; it
+does not reconstruct that target from scratch. The first 18 active migrations
+match the hosted ledger version-for-version; the two later forward migrations
+are source-only hardening work and have not been applied to the hosted
+project.
 
 ## Roles
 

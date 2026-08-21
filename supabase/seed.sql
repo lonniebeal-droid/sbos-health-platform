@@ -154,7 +154,7 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.claims (id, organization_id, patient_id, encounter_id, insurance_info_id, claim_number, status, total_charge_cents, submitted_at, reviewed_at, paid_at, created_by_user_id)
 VALUES ('f0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'ac000000-0000-0000-0000-000000000001',
-        'CLM-2026-884102', 'paid', 125000, '2026-07-11T00:00:00Z', '2026-07-12T00:00:00Z', '2026-07-14T00:00:00Z', 'a0000000-0000-0000-0000-000000000003')
+        'CLM-2026-884102', 'paid', 125000, '2026-07-11T00:00:00Z', '2026-07-12T00:00:00Z', '2026-07-14T00:00:00Z', 'a0000000-0000-0000-0000-000000000004')
 ON CONFLICT (organization_id, claim_number) DO NOTHING;
 
 INSERT INTO public.claim_lines (id, organization_id, claim_id, encounter_procedure_id, procedure_code, procedure_description, units, charge_cents, line_total_cents, status)
@@ -164,7 +164,7 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.claim_payments (id, organization_id, claim_id, claim_line_id, payment_source, payment_method, amount_cents, reference_number, paid_at, posted_by_user_id)
 VALUES ('f2000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'f0000000-0000-0000-0000-000000000001', 'f1000000-0000-0000-0000-000000000001',
-        'payer', 'eft', 110000, 'EFT-2026-77201', '2026-07-14T00:00:00Z', 'a0000000-0000-0000-0000-000000000003')
+        'payer', 'eft', 110000, 'EFT-2026-77201', '2026-07-14T00:00:00Z', 'a0000000-0000-0000-0000-000000000004')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.audit_logs (organization_id, actor_id, action, resource_type, resource_id, ip_address)
