@@ -13,14 +13,22 @@
 -- patient/plan link. Amounts are stored in cents, matching claims/payments
 -- convention elsewhere in this schema (see claims.total_charge_cents).
 
-ALTER TABLE public.insurance_info
-  ADD COLUMN network_type text
-    CHECK (network_type IS NULL OR network_type = ANY (ARRAY['PPO', 'HMO', 'EPO']::text[])),
-  ADD COLUMN individual_deductible_cents integer,
-  ADD COLUMN deductible_met_cents integer,
-  ADD COLUMN out_of_pocket_max_cents integer,
-  ADD COLUMN out_of_pocket_met_cents integer,
-  ADD COLUMN copays jsonb;
+DO $$
+BEGIN
+  -- The repository's canonical schema uses benefits_plans instead. Only alter
+  -- the normalized live schema when its insurance_info table is present.
+  IF to_regclass('public.insurance_info') IS NOT NULL THEN
+    ALTER TABLE public.insurance_info
+      ADD COLUMN IF NOT EXISTS network_type text
+        CHECK (network_type IS NULL OR network_type = ANY (ARRAY['PPO', 'HMO', 'EPO']::text[])),
+      ADD COLUMN IF NOT EXISTS individual_deductible_cents integer,
+      ADD COLUMN IF NOT EXISTS deductible_met_cents integer,
+      ADD COLUMN IF NOT EXISTS out_of_pocket_max_cents integer,
+      ADD COLUMN IF NOT EXISTS out_of_pocket_met_cents integer,
+      ADD COLUMN IF NOT EXISTS copays jsonb;
 
-COMMENT ON COLUMN public.insurance_info.copays IS
-  'Per-service-type copay amounts in cents, e.g. {"primaryCare": 2000, "specialist": 4500, "urgentCare": 5000, "emergencyRoom": 25000, "genericRx": 1000}. Null until populated.';
+    COMMENT ON COLUMN public.insurance_info.copays IS
+      'Per-service-type copay amounts in cents, e.g. {"primaryCare": 2000, "specialist": 4500, "urgentCare": 5000, "emergencyRoom": 25000, "genericRx": 1000}. Null until populated.';
+  END IF;
+END
+$$;

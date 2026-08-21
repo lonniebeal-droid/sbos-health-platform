@@ -15,18 +15,32 @@
 --   33333333-...-333333333333  Acme Technology Corp     (employer_group)
 -- ====================================================================
 
--- Supabase Auth users. The handle_new_user() trigger auto-creates the matching
--- public.users profile from raw_user_meta_data (full_name / role / organization_id).
+-- Supabase Auth users. The trigger creates unassigned patient profiles. The
+-- trusted seed upsert below assigns fixture roles and organizations explicitly;
+-- user-supplied signup metadata is never an authorization source.
 INSERT INTO auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
   confirmation_token, recovery_token, email_change_token_new, email_change
 ) VALUES
-  ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000001','authenticated','authenticated','provider@bayarea.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Dr. James Wilson','role','provider','organization_id','11111111-1111-1111-1111-111111111111'),now(),now(),'','','',''),
-  ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000002','authenticated','authenticated','patient@bayarea.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Sarah Jenkins','role','patient','organization_id','11111111-1111-1111-1111-111111111111'),now(),now(),'','','',''),
-  ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000003','authenticated','authenticated','payer@sbospremier.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Elena Rostova','role','insurance','organization_id','22222222-2222-2222-2222-222222222222'),now(),now(),'','','',''),
-  ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000004','authenticated','authenticated','admin@bayarea.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Devon Sterling','role','admin','organization_id','11111111-1111-1111-1111-111111111111'),now(),now(),'','','','')
+  ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000001','authenticated','authenticated','provider@bayarea.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Dr. James Wilson'),now(),now(),'','','',''),
+  ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000002','authenticated','authenticated','patient@bayarea.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Sarah Jenkins'),now(),now(),'','','',''),
+  ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000003','authenticated','authenticated','payer@sbospremier.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Elena Rostova'),now(),now(),'','','',''),
+  ('00000000-0000-0000-0000-000000000000','a0000000-0000-0000-0000-000000000004','authenticated','authenticated','admin@bayarea.test',crypt('Password123!',gen_salt('bf')),now(),'{"provider":"email","providers":["email"]}',jsonb_build_object('full_name','Devon Sterling'),now(),now(),'','','','')
 ON CONFLICT (id) DO NOTHING;
+
+-- Only trusted database administration assigns access-bearing fields.
+INSERT INTO public.users (id, email, full_name, role, organization_id)
+VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'provider@bayarea.test', 'Dr. James Wilson', 'provider', '11111111-1111-1111-1111-111111111111'),
+  ('a0000000-0000-0000-0000-000000000002', 'patient@bayarea.test', 'Sarah Jenkins', 'patient', '11111111-1111-1111-1111-111111111111'),
+  ('a0000000-0000-0000-0000-000000000003', 'payer@sbospremier.test', 'Elena Rostova', 'insurance', '22222222-2222-2222-2222-222222222222'),
+  ('a0000000-0000-0000-0000-000000000004', 'admin@bayarea.test', 'Devon Sterling', 'admin', '11111111-1111-1111-1111-111111111111')
+ON CONFLICT (id) DO UPDATE
+SET email = EXCLUDED.email,
+    full_name = EXCLUDED.full_name,
+    role = EXCLUDED.role,
+    organization_id = EXCLUDED.organization_id;
 
 -- Email identities (required by GoTrue for password sign-in).
 INSERT INTO auth.identities (
