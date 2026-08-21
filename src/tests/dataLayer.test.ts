@@ -366,6 +366,45 @@ describe('repositories', () => {
     expect(seenOps.some((op) => op[0] === 'eq' && op[1] === 'organization_id')).toBe(false);
   });
 
+  it('insuranceInfo.list returns rows carrying the benefits columns (no separate benefits_plans table)', async () => {
+    let seenTable = '';
+    const repos = createRepositories(fakeClient((table) => {
+      seenTable = table;
+      return {
+        data: [{ id: 'ins-1', member_id: 'SBOS-1', individual_deductible_cents: 150000, copays: { primaryCare: 2000 } }],
+        error: null,
+      };
+    }));
+    const rows = await repos.insuranceInfo.list();
+    expect(seenTable).toBe('insurance_info');
+    expect(rows[0].individual_deductible_cents).toBe(150000);
+  });
+
+  it('insuranceInfo.list returns an empty array (not an error) when the patient has no coverage record yet', async () => {
+    const repos = createRepositories(fakeClient(() => ({ data: [], error: null })));
+    expect(await repos.insuranceInfo.list()).toEqual([]);
+  });
+
+  it('insuranceInfo repository surfaces a Postgrest FK-violation error (e.g. from an invalid patient_id) instead of silently succeeding', async () => {
+    const repos = createRepositories(fakeClient(() => ({
+      data: null,
+      error: { message: 'insert or update on table "insurance_info" violates foreign key constraint "insurance_info_patient_id_fkey"' },
+    })));
+    await expect(repos.insuranceInfo.list()).rejects.toThrow(/foreign key constraint/);
+  });
+
+  // Same caveat as claims/patients/prior-auths/prescriptions/lab-results/
+  // medical-records above: scoping depends entirely on RLS, disabled today.
+  it('insuranceInfo.list does not itself filter by organization_id', async () => {
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((_t, ops) => {
+      seenOps = ops;
+      return { data: [], error: null };
+    }));
+    await repos.insuranceInfo.list();
+    expect(seenOps.some((op) => op[0] === 'eq' && op[1] === 'organization_id')).toBe(false);
+  });
+
   it('priorAuths.create inserts a new prior authorization row', async () => {
     let seenTable = '';
     let seenOps: unknown[][] = [];

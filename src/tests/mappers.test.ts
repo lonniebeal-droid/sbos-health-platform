@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapProvider, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapLabResult, mapBenefitsPlan, mapPrescription } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithDetails, InsuranceInfoRow, ProviderIdentityRow, AppointmentWithNames, ClaimWithDetails, ClaimPaymentRow, ClaimAdjustmentRow, ClaimDenialRow, ClaimStatusEventRow, PriorAuthorizationWithNames, MedicalRecordRow, LabResultRow, BenefitsPlanRow, PrescriptionWithProvider } from '../lib/db/database.types';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithDetails, InsuranceInfoRow, ProviderIdentityRow, AppointmentWithNames, ClaimWithDetails, ClaimPaymentRow, ClaimAdjustmentRow, ClaimDenialRow, ClaimStatusEventRow, PriorAuthorizationWithNames, MedicalRecordRow, LabResultRow, PrescriptionWithProvider } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', slug: 'bay-area-health-system', type: 'health_system',
@@ -72,6 +72,9 @@ const baseInsurance: InsuranceInfoRow = {
   plan_name: 'Gold PPO', member_id: 'SBOS-98421092', group_number: 'GOLD-PPO',
   policy_holder_name: 'Sarah Jenkins', relationship_to_patient: 'self',
   coverage_start_date: '2026-01-01', coverage_end_date: null, status: 'active',
+  network_type: 'PPO', individual_deductible_cents: 150000, deductible_met_cents: 125000,
+  out_of_pocket_max_cents: 450000, out_of_pocket_met_cents: 168000,
+  copays: { primaryCare: 2000, specialist: 4500, urgentCare: 5000, emergencyRoom: 25000, genericRx: 1000 },
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
 
@@ -414,24 +417,35 @@ describe('mapLabResult', () => {
 });
 
 describe('mapBenefitsPlan', () => {
-  const row: BenefitsPlanRow = {
-    id: 'bp-1', patient_id: 'pat-1', organization_id: 'org-1',
-    plan_id: 'SBOS-GOLD-PPO-2026', plan_name: 'Gold Premier PPO', network_type: 'PPO',
-    individual_deductible: 1500, deductible_met: 1250, out_of_pocket_max: 4500, out_of_pocket_met: 1680,
-    copays: { primaryCare: 20, specialist: 45, urgentCare: 50, emergencyRoom: 250, genericRx: 10 },
-    created_at: '2026-01-01T00:00:00Z',
-  };
+  // No separate benefits_plans table — deductible/OOP/copay figures live
+  // directly on insurance_info (in cents), reusing the baseInsurance fixture.
+  const row: InsuranceInfoRow = baseInsurance;
 
-  it('maps plan fields and copays', () => {
+  it('maps plan fields and copays from insurance_info, converting cents to dollars', () => {
     const p = mapBenefitsPlan(row);
-    expect(p.planId).toBe('SBOS-GOLD-PPO-2026');
+    expect(p.planId).toBe('SBOS-98421092');
+    expect(p.planName).toBe('Gold PPO');
     expect(p.networkType).toBe('PPO');
     expect(p.individualDeductible).toBe(1500);
+    expect(p.deductibleMet).toBe(1250);
+    expect(p.outOfPocketMax).toBe(4500);
     expect(p.copays.specialist).toBe(45);
   });
 
-  it('defaults copays when missing', () => {
-    const p = mapBenefitsPlan({ ...row, copays: {} as BenefitsPlanRow['copays'] });
+  it('falls back to payer_name when plan_name is unset, and defaults missing deductible/copay figures to 0', () => {
+    const p = mapBenefitsPlan({
+      ...row, plan_name: null,
+      individual_deductible_cents: null, deductible_met_cents: null,
+      out_of_pocket_max_cents: null, out_of_pocket_met_cents: null,
+      copays: null,
+    });
+    expect(p.planName).toBe('SBOS Gold Premier PPO');
+    expect(p.individualDeductible).toBe(0);
     expect(p.copays.primaryCare).toBe(0);
+  });
+
+  it('leaves networkType null (not fabricated) when the live row has none set', () => {
+    const p = mapBenefitsPlan({ ...row, network_type: null });
+    expect(p.networkType).toBeNull();
   });
 });

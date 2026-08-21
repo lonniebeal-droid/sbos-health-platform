@@ -9,25 +9,32 @@
 
 import type { TenantOrg } from '../organizationContext';
 import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithDetails, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithDetails, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderIdentityRow, LabResultRow } from './database.types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithDetails, InsuranceInfoRow, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithDetails, PriorAuthorizationWithNames, MedicalRecordRow, ProviderIdentityRow, LabResultRow } from './database.types';
 import { sumPayments, calculatePatientResponsibilityCents, parseAdjudicationMethod, centsToDollars } from '../claimsBalance';
 
-/** BenefitsPlanRow -> the UI BenefitsPlan domain type. */
-export function mapBenefitsPlan(row: BenefitsPlanRow): BenefitsPlan {
+/**
+ * InsuranceInfoRow -> the UI BenefitsPlan domain type. There is no separate
+ * `benefits_plans` table — deductible/OOP/copay figures live directly on the
+ * patient's insurance_info row (in cents) and are converted to dollars here.
+ * Internal benefits tracking only: no real-time payer eligibility/benefit
+ * verification API integration exists anywhere in this app, so these figures
+ * are only as current as whatever was last recorded in this system.
+ */
+export function mapBenefitsPlan(row: InsuranceInfoRow): BenefitsPlan {
   return {
-    planId: row.plan_id,
-    planName: row.plan_name,
+    planId: row.member_id,
+    planName: row.plan_name ?? row.payer_name,
     networkType: row.network_type,
-    individualDeductible: row.individual_deductible,
-    deductibleMet: row.deductible_met,
-    outOfPocketMax: row.out_of_pocket_max,
-    outOfPocketMet: row.out_of_pocket_met,
+    individualDeductible: centsToDollars(row.individual_deductible_cents ?? 0),
+    deductibleMet: centsToDollars(row.deductible_met_cents ?? 0),
+    outOfPocketMax: centsToDollars(row.out_of_pocket_max_cents ?? 0),
+    outOfPocketMet: centsToDollars(row.out_of_pocket_met_cents ?? 0),
     copays: {
-      primaryCare: row.copays?.primaryCare ?? 0,
-      specialist: row.copays?.specialist ?? 0,
-      urgentCare: row.copays?.urgentCare ?? 0,
-      emergencyRoom: row.copays?.emergencyRoom ?? 0,
-      genericRx: row.copays?.genericRx ?? 0,
+      primaryCare: centsToDollars(row.copays?.primaryCare ?? 0),
+      specialist: centsToDollars(row.copays?.specialist ?? 0),
+      urgentCare: centsToDollars(row.copays?.urgentCare ?? 0),
+      emergencyRoom: centsToDollars(row.copays?.emergencyRoom ?? 0),
+      genericRx: centsToDollars(row.copays?.genericRx ?? 0),
     },
   };
 }

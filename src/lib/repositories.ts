@@ -23,7 +23,6 @@ import type {
   PriorAuthorizationRow, PriorAuthorizationInsert, PriorAuthorizationWithNames, DbPriorAuthStatus,
   LabResultRow,
   MedicalRecordRow,
-  BenefitsPlanRow,
   AuditLogRow, AuditLogInsert,
 } from './db/database.types';
 
@@ -162,7 +161,9 @@ export function createRepositories(client: SupabaseClient) {
     },
 
     medicalRecords: crud<MedicalRecordRow>(client, 'medical_records', 'record_date'),
-    benefitsPlans: crud<BenefitsPlanRow>(client, 'benefits_plans', 'created_at'),
+    // No separate benefits_plans table — deductible/OOP/copay figures live on
+    // insurance_info directly (see mapBenefitsPlan). Callers wanting the UI
+    // BenefitsPlan view use insuranceInfo.list().map(mapBenefitsPlan).
     insuranceInfo: crud<InsuranceInfoRow>(client, 'insurance_info'),
 
     patients: {

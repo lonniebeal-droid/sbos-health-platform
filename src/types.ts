@@ -223,7 +223,8 @@ export interface BIRPNote {
 export interface BenefitsPlan {
   planId: string;
   planName: string;
-  networkType: 'PPO' | 'HMO' | 'EPO';
+  /** Null when the live insurance_info row hasn't recorded a network type yet. */
+  networkType: 'PPO' | 'HMO' | 'EPO' | null;
   individualDeductible: number;
   deductibleMet: number;
   outOfPocketMax: number;

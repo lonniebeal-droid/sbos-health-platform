@@ -45,7 +45,7 @@ export const EligibilityVerifier: React.FC = () => {
     isSupabaseConfigured,
   );
   const { data: realPlans, loading: plansLoading, error: plansError } = useAsync<BenefitsPlan[]>(
-    async () => (await getRepositories().benefitsPlans.list()).map(mapBenefitsPlan),
+    async () => (await getRepositories().insuranceInfo.list()).map(mapBenefitsPlan),
     isSupabaseConfigured,
   );
   const usingLivePatient = isSupabaseConfigured && !!realPatients && realPatients.length > 0;
