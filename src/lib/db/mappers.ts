@@ -59,14 +59,18 @@ export interface LabOrderDisplay {
   source: 'live' | 'demo';
 }
 
-/** LabResultRow -> the lab workflow display model. */
+/**
+ * LabResultRow -> the lab workflow display model. Internal lab result
+ * tracking only — there is no external lab vendor or HL7/FHIR ingestion
+ * integration, so `facility` never claims a real connected lab interface.
+ */
 export function mapLabResult(row: LabResultRow): LabOrderDisplay {
   const referenceRange = row.reference_range ? ` Reference range: ${row.reference_range}` : '';
   return {
     id: row.id,
     testName: row.test_name,
     loinc: row.loinc_code,
-    facility: 'Connected lab result',
+    facility: 'Internal record (no external lab interface configured)',
     status: row.status,
     date: row.result_date,
     result: `${row.result_value}${referenceRange}`,

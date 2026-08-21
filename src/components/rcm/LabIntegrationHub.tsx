@@ -64,7 +64,7 @@ export const LabIntegrationHub: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <TestTube className="w-5 h-5 text-teal-400" />
-            <h2 className="font-bold text-lg">Laboratory Results & Demo Order Workflow</h2>
+            <h2 className="font-bold text-lg">Laboratory Results — Internal Tracking</h2>
             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
               usingLive
                 ? 'bg-emerald-400/20 text-emerald-100 border border-emerald-300/40'
@@ -76,11 +76,17 @@ export const LabIntegrationHub: React.FC = () => {
                 <span className="inline-flex items-center gap-1"><FlaskConical className="w-3 h-3" /> Demo lab data</span>
               )}
             </span>
+            <span
+              title="No external lab vendor (e.g. Quest/Labcorp) or HL7/FHIR ingestion integration exists — nothing here comes from a real lab interface."
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-200 border border-slate-400/30"
+            >
+              Internal lab result tracking
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
             {usingLive
-              ? 'Showing lab results from the live database. New external lab orders remain demo-only until Quest/Labcorp or FHIR delivery is configured.'
-              : 'Review a demo lab-order workflow. Direct Quest/Labcorp and FHIR delivery are not configured yet.'}
+              ? 'Showing lab results recorded directly in this system. There is no external lab vendor or HL7/FHIR integration — results here are entered/tracked internally, not received from a real lab interface. New orders below remain demo-only.'
+              : 'Review a demo lab-order workflow. There is no external lab vendor or HL7/FHIR integration configured.'}
           </p>
           {loading && <p className="text-[11px] text-blue-100 mt-1">Checking for live lab results...</p>}
           {error && <p className="text-[11px] text-amber-100 mt-1">Live lab results unavailable: {error}. Showing demo data.</p>}
