@@ -14,7 +14,7 @@ import type { TenantOrg } from './organizationContext';
 import type {
   OrganizationRow, OrganizationInsert,
   UserRow,
-  PatientRow, PatientWithUser, ProviderRow, ProviderWithUser,
+  PatientRow, PatientWithDetails, InsuranceInfoRow, ProviderIdentityRow,
   AppointmentRow, AppointmentInsert, AppointmentWithNames, DbAppointmentStatus,
   ClaimRow, ClaimWithDetails, DbClaimStatus,
   ClaimPaymentRow, ClaimAdjustmentRow, ClaimDenialRow, ClaimStatusEventRow,
@@ -163,33 +163,43 @@ export function createRepositories(client: SupabaseClient) {
 
     medicalRecords: crud<MedicalRecordRow>(client, 'medical_records', 'record_date'),
     benefitsPlans: crud<BenefitsPlanRow>(client, 'benefits_plans', 'created_at'),
+    insuranceInfo: crud<InsuranceInfoRow>(client, 'insurance_info'),
 
     patients: {
       ...crud<PatientRow>(client, 'patients'),
-      /** Patients with their linked user profile (name/email/phone). */
-      async listDetailed(): Promise<PatientWithUser[]> {
-        return unwrap<PatientWithUser[]>(
+      /** Patients with their insurance/coverage record (member ID, group number
+       * live there, not on patients — see PatientWithDetails). No user join
+       * needed: live `patients` carries name/email/phone directly. */
+      async listDetailed(): Promise<PatientWithDetails[]> {
+        return unwrap<PatientWithDetails[]>(
           await client
             .from('patients')
-            .select('*, user:users(full_name, email, phone)')
+            .select('*, insurance:insurance_info(*)')
             .order('created_at'),
         );
       },
     },
+    /** There is no `providers` table live — provider identity is just
+     * `users` filtered to role = 'provider' (see ProviderIdentityRow). */
     providers: {
-      ...crud<ProviderRow>(client, 'providers'),
-      /** Providers with linked user display identity. */
-      async listDetailed(): Promise<ProviderWithUser[]> {
-        return unwrap<ProviderWithUser[]>(
-          await client
-            .from('providers')
-            .select('*, user:users(full_name, phone)')
-            .order('created_at'),
+      async list(): Promise<ProviderIdentityRow[]> {
+        return unwrap<ProviderIdentityRow[]>(
+          await client.from('users').select('id, organization_id, full_name, is_active, created_at').eq('role', 'provider').order('full_name'),
+        );
+      },
+      async listDetailed(): Promise<ProviderIdentityRow[]> {
+        return unwrap<ProviderIdentityRow[]>(
+          await client.from('users').select('id, organization_id, full_name, is_active, created_at').eq('role', 'provider').order('full_name'),
         );
       },
     },
     labResults: crud<LabResultRow>(client, 'lab_results', 'result_date'),
 
+    // PROPOSED schema — see the AppointmentRow comment in database.types.ts.
+    // Not applied to the live project yet, so `.from('appointments')` calls
+    // below fail there today; existing callers already catch that and fall
+    // back to demo data (see ProviderSearch.tsx), so no behavior changes
+    // until the migration is applied.
     appointments: {
       ...crud<AppointmentRow>(client, 'appointments', 'scheduled_at'),
       /** Appointments with patient + provider display names. */
@@ -197,7 +207,7 @@ export function createRepositories(client: SupabaseClient) {
         return unwrap<AppointmentWithNames[]>(
           await client
             .from('appointments')
-            .select('*, patient:patients(user:users(full_name)), provider:providers(specialty, user:users(full_name))')
+            .select('*, patient:patients(full_name), provider:users(full_name)')
             .order('scheduled_at'),
         );
       },

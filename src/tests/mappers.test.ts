@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapLabResult, mapBenefitsPlan, mapPrescription } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithDetails, ClaimPaymentRow, ClaimAdjustmentRow, ClaimDenialRow, ClaimStatusEventRow, PriorAuthorizationWithNames, MedicalRecordRow, LabResultRow, BenefitsPlanRow, PrescriptionWithProvider } from '../lib/db/database.types';
+import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapProvider, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapLabResult, mapBenefitsPlan, mapPrescription } from '../lib/db/mappers';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithDetails, InsuranceInfoRow, ProviderIdentityRow, AppointmentWithNames, ClaimWithDetails, ClaimPaymentRow, ClaimAdjustmentRow, ClaimDenialRow, ClaimStatusEventRow, PriorAuthorizationWithNames, MedicalRecordRow, LabResultRow, BenefitsPlanRow, PrescriptionWithProvider } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
-  id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
+  id: 'org-1', name: 'Bay Area Health System', slug: 'bay-area-health-system', type: 'health_system',
   tax_id: '94-1829012', npi: '1882901230',
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
@@ -26,6 +26,13 @@ describe('mapOrganizationToTenantOrg', () => {
     expect(t.type).toBe('health_system');
     expect(t.badge).toBe('Clinic Network');
   });
+
+  it('degrades honestly when the live row has no type/tax_id/npi columns yet', () => {
+    const t = mapOrganizationToTenantOrg({ id: 'org-2', name: 'New Org', slug: 'new-org', created_at: '', updated_at: '' });
+    expect(t.type).toBe('health_system');
+    expect(t.badge).toBe('Organization');
+    expect(t.npiOrTaxId).toBe('—');
+  });
 });
 
 const baseLog: AuditLogRow = {
@@ -38,8 +45,8 @@ describe('mapAuditLog', () => {
   it('uses the actor profile for name/role when provided', () => {
     const actor: UserRow = {
       id: 'user-1', organization_id: 'org-1', email: 'j@x.com',
-      role: 'provider', full_name: 'Dr. J', phone: null, is_active: true,
-      created_at: '2026-01-01T00:00:00Z',
+      role: 'provider', full_name: 'Dr. J', is_active: true,
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
     };
     const log = mapAuditLog(baseLog, actor);
     expect(log.userName).toBe('Dr. J');
@@ -60,32 +67,61 @@ describe('mapAuditLog', () => {
   });
 });
 
-const basePatientRow: PatientWithUser = {
-  id: 'pat-1', user_id: 'u-1', organization_id: 'org-1',
-  dob: '1988-04-12', gender: 'Female', address: '742 Evergreen Terrace',
-  insurance_member_id: 'SBOS-98421092', policy_group_number: 'GOLD-PPO',
-  blood_type: 'A+', allergies: ['Penicillin'], chronic_conditions: ['Asthma'],
-  recent_vitals: { bloodPressure: '118/76', heartRate: 72, spO2: 99, weightLbs: 142, date: '2026-07-20' },
-  family_members: [{ id: 'fm1', name: 'David', relation: 'Spouse', dob: '1986-09-18' }],
-  primary_care_physician: 'Dr. Wilson', created_at: '2026-01-01T00:00:00Z',
-  user: { full_name: 'Sarah Jenkins', email: 'sarah@x.com', phone: '(555) 382-9102' },
+const baseInsurance: InsuranceInfoRow = {
+  id: 'ins-1', organization_id: 'org-1', patient_id: 'pat-1', payer_name: 'SBOS Gold Premier PPO',
+  plan_name: 'Gold PPO', member_id: 'SBOS-98421092', group_number: 'GOLD-PPO',
+  policy_holder_name: 'Sarah Jenkins', relationship_to_patient: 'self',
+  coverage_start_date: '2026-01-01', coverage_end_date: null, status: 'active',
+  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+};
+
+const basePatientRow: PatientWithDetails = {
+  id: 'pat-1', organization_id: 'org-1', user_id: 'u-1',
+  full_name: 'Sarah Jenkins', date_of_birth: '1988-04-12', gender: 'Female',
+  email: 'sarah@x.com', phone: '(555) 382-9102', address: '742 Evergreen Terrace',
+  created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+  insurance: baseInsurance,
 };
 
 describe('mapPatient', () => {
-  it('pulls name/email/phone from the joined user and keeps clinical fields', () => {
+  it('pulls name/email/phone/address directly off the live patients row', () => {
     const p = mapPatient(basePatientRow);
     expect(p.name).toBe('Sarah Jenkins');
     expect(p.email).toBe('sarah@x.com');
     expect(p.phone).toBe('(555) 382-9102');
-    expect(p.recentVitals.bloodPressure).toBe('118/76');
-    expect(p.familyMembers).toHaveLength(1);
-    expect(p.primaryCarePhysician).toBe('Dr. Wilson');
+    expect(p.insuranceId).toBe('SBOS-98421092');
+    expect(p.policyGroup).toBe('GOLD-PPO');
   });
 
-  it('degrades gracefully when the user join and vitals are missing', () => {
-    const p = mapPatient({ ...basePatientRow, user: null, recent_vitals: null });
+  it('degrades gracefully when insurance is missing and honestly empties clinical fields with no live table', () => {
+    const p = mapPatient({ ...basePatientRow, full_name: '', insurance: null });
     expect(p.name).toBe('Unknown Patient');
+    expect(p.insuranceId).toBe('');
+    expect(p.policyGroup).toBe('');
     expect(p.recentVitals.heartRate).toBe(0);
+    expect(p.allergies).toEqual([]);
+    expect(p.familyMembers).toEqual([]);
+  });
+});
+
+describe('mapProvider', () => {
+  const providerRow: ProviderIdentityRow = {
+    id: 'prov-1', organization_id: 'org-1', full_name: 'Dr. James Wilson', is_active: true,
+    created_at: '2026-01-01T00:00:00Z',
+  };
+
+  it('maps identity from a users row (no live providers table) and leaves unavailable fields honest', () => {
+    const p = mapProvider(providerRow);
+    expect(p.name).toBe('Dr. James Wilson');
+    expect(p.specialty).toBe('');
+    expect(p.npi).toBe('');
+    expect(p.hospitalAffiliation).toBe('Organization network');
+  });
+
+  it('falls back to Unknown Provider and Network not assigned when name/org are missing', () => {
+    const p = mapProvider({ ...providerRow, full_name: '', organization_id: null });
+    expect(p.name).toBe('Unknown Provider');
+    expect(p.hospitalAffiliation).toBe('Network not assigned');
   });
 });
 
@@ -103,16 +139,18 @@ describe('mapAppointment', () => {
     id: 'apt-1', patient_id: 'pat-1', provider_id: 'prov-1', organization_id: 'org-1',
     appointment_type: 'telehealth', status: 'scheduled', scheduled_at: '2026-07-28T10:00:00Z',
     telehealth_room_url: 'https://sbos.health/meet/x', chief_complaint: 'Wellness check',
-    created_at: '2026-01-01T00:00:00Z',
-    patient: { user: { full_name: 'Sarah Jenkins' } },
-    provider: { specialty: 'Internal Medicine', user: { full_name: 'Dr. James Wilson' } },
+    created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    patient: { full_name: 'Sarah Jenkins' },
+    provider: { full_name: 'Dr. James Wilson' },
   };
 
   it('maps names, date/time, type, reason, and meet link', () => {
     const a = mapAppointment(row);
     expect(a.patientName).toBe('Sarah Jenkins');
     expect(a.providerName).toBe('Dr. James Wilson');
-    expect(a.providerSpecialty).toBe('Internal Medicine');
+    // No live providers table yet, so specialty has no source here — callers
+    // that already know it (ProviderSearch.tsx) fill it in client-side.
+    expect(a.providerSpecialty).toBe('');
     expect(a.date).toBe('2026-07-28');
     expect(a.time).toBe('10:00 AM');
     expect(a.type).toBe('telehealth');

@@ -73,6 +73,69 @@ describe('repositories', () => {
     await expect(repos.patients.list()).rejects.toThrow('RLS denied');
   });
 
+  it('organizations.listAsTenantOrgs maps live rows (no type/tax_id/npi columns) to an honest TenantOrg view', async () => {
+    const repos = createRepositories(fakeClient(() => ({
+      data: [{ id: 'o1', name: 'Bay Area Health System', slug: 'bay-area', created_at: '', updated_at: '' }],
+      error: null,
+    })));
+    const orgs = await repos.organizations.listAsTenantOrgs();
+    expect(orgs[0]).toMatchObject({ id: 'o1', name: 'Bay Area Health System', badge: 'Organization', npiOrTaxId: '—' });
+  });
+
+  it('users.getByEmail filters by email', async () => {
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((_t, ops) => {
+      seenOps = ops;
+      return { data: { id: 'u1', role: 'medical_biller' }, error: null };
+    }));
+    const row = await repos.users.getByEmail('biller@bayarea.test');
+    expect(seenOps).toContainEqual(['eq', 'email', 'biller@bayarea.test']);
+    expect(row?.role).toBe('medical_biller');
+  });
+
+  it('patients.listDetailed embeds insurance_info instead of joining users (live patients carries name/email/phone directly)', async () => {
+    let seenTable = '';
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((table, ops) => {
+      seenTable = table; seenOps = ops;
+      return { data: [{ id: 'pat-1', full_name: 'Sarah Jenkins', insurance: null }], error: null };
+    }));
+    const rows = await repos.patients.listDetailed();
+    expect(seenTable).toBe('patients');
+    expect(seenOps).toContainEqual(['select', '*, insurance:insurance_info(*)']);
+    expect(rows[0].full_name).toBe('Sarah Jenkins');
+  });
+
+  it('providers.list queries users filtered to role = provider (no live providers table)', async () => {
+    let seenTable = '';
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((table, ops) => {
+      seenTable = table; seenOps = ops;
+      return { data: [{ id: 'u1', full_name: 'Dr. James Wilson', organization_id: 'org-1', is_active: true, created_at: '' }], error: null };
+    }));
+    const rows = await repos.providers.list();
+    expect(seenTable).toBe('users');
+    expect(seenOps).toContainEqual(['eq', 'role', 'provider']);
+    expect(rows[0].full_name).toBe('Dr. James Wilson');
+  });
+
+  // Tenant scoping today is enforced entirely by Supabase RLS on the live
+  // project, not by these repositories — none of them add an explicit
+  // `.eq('organization_id', ...)` filter, they rely on the authenticated
+  // session's row-level policy to scope results. RLS is currently DISABLED
+  // on the live "SBOS HealthOS" project (flagged separately), so this
+  // repository layer cannot itself guarantee cross-tenant isolation right
+  // now — documenting that honestly here instead of asserting it's blocked.
+  it('repository queries do not themselves filter by organization_id — isolation depends entirely on RLS', async () => {
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((_t, ops) => {
+      seenOps = ops;
+      return { data: [], error: null };
+    }));
+    await repos.patients.listDetailed();
+    expect(seenOps.some((op) => op[0] === 'eq' && op[1] === 'organization_id')).toBe(false);
+  });
+
   it('appointments.updateStatus issues an update + eq filter', async () => {
     let seenOps: unknown[][] = [];
     const repos = createRepositories(fakeClient((_t, ops) => {

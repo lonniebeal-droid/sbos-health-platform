@@ -9,7 +9,7 @@
 
 import type { TenantOrg } from '../organizationContext';
 import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithDetails, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, LabResultRow } from './database.types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithDetails, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithDetails, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderIdentityRow, LabResultRow } from './database.types';
 import { sumPayments, calculatePatientResponsibilityCents, parseAdjudicationMethod, centsToDollars } from '../claimsBalance';
 
 /** BenefitsPlanRow -> the UI BenefitsPlan domain type. */
@@ -156,16 +156,22 @@ export function formatTime24to12(hhmm: string): string {
   return `${h12}:${m ?? '00'} ${period}`;
 }
 
-/** AppointmentWithNames -> the UI Appointment domain type. */
+/**
+ * AppointmentWithNames -> the UI Appointment domain type. Proposed schema
+ * (see AppointmentRow) — providerSpecialty has no live source since there is
+ * no providers table, so it is left blank here; callers that already know the
+ * specialty client-side (e.g. ProviderSearch composing from the selected
+ * Provider) can still fill it in when constructing the UI object directly.
+ */
 export function mapAppointment(row: AppointmentWithNames): Appointment {
   const iso = row.scheduled_at ?? '';
   return {
     id: row.id,
     patientId: row.patient_id ?? '',
-    patientName: row.patient?.user?.full_name ?? 'Unknown Patient',
+    patientName: row.patient?.full_name ?? 'Unknown Patient',
     providerId: row.provider_id ?? '',
-    providerName: row.provider?.user?.full_name ?? 'Unknown Provider',
-    providerSpecialty: row.provider?.specialty ?? '',
+    providerName: row.provider?.full_name ?? 'Unknown Provider',
+    providerSpecialty: '',
     date: iso.slice(0, 10),
     time: iso.length >= 16 ? formatTime24to12(iso.slice(11, 16)) : '',
     type: row.appointment_type === 'telehealth' ? 'telehealth' : 'in_person',
@@ -200,46 +206,59 @@ export function mapPrescription(row: PrescriptionWithProvider): Prescription {
 
 const EMPTY_VITALS = { bloodPressure: '—', heartRate: 0, spO2: 0, weightLbs: 0, date: '—' };
 
-/** PatientWithUser (row + joined profile) -> the EHR Patient domain type. */
-export function mapPatient(row: PatientWithUser): Patient {
+/**
+ * PatientWithDetails -> the EHR Patient domain type. Live `patients` carries
+ * name/dob/gender/phone/email/address directly (no user join needed);
+ * insurance member ID / group number come from the joined insurance_info row
+ * when one exists. Clinical fields with no live table yet (blood type,
+ * allergies, chronic conditions, vitals, family members, PCP) are left as
+ * honest empty states rather than fabricated.
+ */
+export function mapPatient(row: PatientWithDetails): Patient {
   return {
     id: row.id,
-    name: row.user?.full_name ?? 'Unknown Patient',
-    dob: row.dob,
+    name: row.full_name || 'Unknown Patient',
+    dob: row.date_of_birth ?? '',
     gender: row.gender ?? '',
-    phone: row.user?.phone ?? '',
-    email: row.user?.email ?? '',
+    phone: row.phone ?? '',
+    email: row.email ?? '',
     address: row.address ?? '',
-    insuranceId: row.insurance_member_id,
-    policyGroup: row.policy_group_number,
-    primaryCarePhysician: row.primary_care_physician ?? '',
-    bloodType: row.blood_type ?? '',
-    allergies: row.allergies ?? [],
-    chronicConditions: row.chronic_conditions ?? [],
-    recentVitals: row.recent_vitals ?? EMPTY_VITALS,
-    familyMembers: row.family_members ?? [],
+    insuranceId: row.insurance?.member_id ?? '',
+    policyGroup: row.insurance?.group_number ?? '',
+    primaryCarePhysician: '',
+    bloodType: '',
+    allergies: [],
+    chronicConditions: [],
+    recentVitals: EMPTY_VITALS,
+    familyMembers: [],
   };
 }
 
-/** ProviderWithUser -> Provider search display model; missing profile fields stay explicit placeholders. */
-export function mapProvider(row: ProviderWithUser): Provider {
-  const name = row.user?.full_name ?? 'Unknown Provider';
+/**
+ * ProviderIdentityRow (users where role = 'provider') -> Provider search
+ * display model. There is no providers table live, so specialty/NPI/license/
+ * fee/accepting-new-patients have no source and stay honest placeholders —
+ * `inNetwork`/`acceptsNewPatients` default true is a pre-existing UI
+ * convention in this mapper (not new), not a claim about verified data.
+ */
+export function mapProvider(row: ProviderIdentityRow): Provider {
+  const name = row.full_name || 'Unknown Provider';
   return {
     id: row.id,
     name,
-    specialty: row.specialty,
-    npi: row.npi,
+    specialty: '',
+    npi: '',
     rating: 0,
     reviewCount: 0,
     inNetwork: true,
     hospitalAffiliation: row.organization_id ? 'Organization network' : 'Network not assigned',
     address: '',
-    phone: row.user?.phone ?? '',
+    phone: '',
     nextAvailableSlot: 'Check scheduling',
     avatar: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`,
-    acceptsNewPatients: row.accepting_new_patients,
-    bio: `Licensed ${row.specialty} provider. Live row loaded from the providers table.`,
-    education: `License ${row.license_number}`,
+    acceptsNewPatients: true,
+    bio: `Live provider — no specialty/bio data captured yet (no providers table in the live schema).`,
+    education: '',
   };
 }
 
@@ -250,12 +269,20 @@ const ORG_TYPE_BADGE: Record<DbOrgType, string> = {
   clinic: 'Clinic Network',
 };
 
-/** OrganizationRow -> the org-context TenantOrg view. Faithful. */
+/**
+ * OrganizationRow -> the org-context TenantOrg view. Live organizations has
+ * no `type`/`tax_id`/`npi` columns yet (cosmetic-only, not access control —
+ * see the DbOrgType comment) — when absent, `type` defaults to
+ * 'health_system' (a neutral, non-privileged bucket; it never defaults to
+ * 'payer' so a row we know nothing about never silently unlocks payer-tier
+ * display) and the badge honestly reads 'Organization' instead of a specific
+ * classification we don't have.
+ */
 export function mapOrganizationToTenantOrg(row: OrganizationRow): TenantOrg {
   // TenantOrg.type has no 'clinic' member; collapse clinic into health_system
   // for the context's coarse grouping (display badge still shows "Clinic Network").
   const type: TenantOrg['type'] =
-    row.type === 'clinic' ? 'health_system' : row.type;
+    !row.type ? 'health_system' : row.type === 'clinic' ? 'health_system' : row.type;
 
   const npiOrTaxId = row.npi
     ? `NPI: ${row.npi}`
@@ -267,7 +294,7 @@ export function mapOrganizationToTenantOrg(row: OrganizationRow): TenantOrg {
     id: row.id,
     name: row.name,
     type,
-    badge: ORG_TYPE_BADGE[row.type],
+    badge: row.type ? ORG_TYPE_BADGE[row.type] : 'Organization',
     npiOrTaxId,
   };
 }
