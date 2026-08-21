@@ -14,7 +14,7 @@ export const BenefitsExplainer: React.FC = () => {
 
   // Load the member's real benefits plan (RLS-scoped); fall back to demo data.
   const { data: realPlans } = useAsync<BenefitsPlan[]>(
-    async () => (await getRepositories().benefitsPlans.list()).map(mapBenefitsPlan),
+    async () => (await getRepositories().insuranceInfo.list()).map(mapBenefitsPlan),
     isSupabaseConfigured,
   );
   const plan: BenefitsPlan =
@@ -69,13 +69,21 @@ export const BenefitsExplainer: React.FC = () => {
       <div className="p-6 rounded-3xl bg-gradient-to-r from-teal-900 via-indigo-900 to-blue-900 text-white shadow-xl space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <span className="text-xs font-bold font-mono px-3 py-1 rounded-full bg-teal-400/20 text-teal-300 border border-teal-400/30">
-              {usingLivePlan ? 'ACTIVE POLICY' : 'DEMO POLICY'}: {plan.planId}
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold font-mono px-3 py-1 rounded-full bg-teal-400/20 text-teal-300 border border-teal-400/30">
+                {usingLivePlan ? 'ACTIVE POLICY' : 'DEMO POLICY'}: {plan.planId}
+              </span>
+              <span
+                title="No real-time payer eligibility/benefit-check API integration exists — figures shown are only as current as what's recorded in this system."
+                className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-200 border border-slate-400/30"
+              >
+                Internal benefits tracking
+              </span>
+            </div>
             <h2 className="text-2xl font-extrabold mt-2">{plan.planName}</h2>
             <p className="text-xs text-teal-100 mt-1">
               {usingLivePlan
-                ? 'Member plan summary loaded from the connected database.'
+                ? 'Member plan summary loaded from the connected database. Not a real-time payer eligibility check — figures are only as current as what was last recorded here.'
                 : 'Demo medical, mental health, prescription, and emergency coverage summary.'}
             </p>
           </div>

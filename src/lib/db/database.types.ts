@@ -87,7 +87,23 @@ export interface PatientRow {
 
 export type DbInsuranceStatus = 'active' | 'inactive' | 'pending' | 'expired';
 
-/** A patient's insurance/coverage record — this is where member ID / group number live. */
+/** Per-service-type copay amounts, in cents. All keys optional — populate as known. */
+export interface BenefitsCopaysCents {
+  primaryCare?: number;
+  specialist?: number;
+  urgentCare?: number;
+  emergencyRoom?: number;
+  genericRx?: number;
+}
+
+/**
+ * A patient's insurance/coverage record — member ID/group number live here,
+ * and (as of the benefits-tracking migration) so do deductible/OOP/copay
+ * figures. There is no separate `benefits_plans` table — those figures are
+ * 1:1 attributes of one coverage record, not a distinct list. Internal
+ * benefits tracking only: no real-time payer eligibility/benefit-check API
+ * integration exists anywhere in this app.
+ */
 export interface InsuranceInfoRow {
   id: string;
   organization_id: string;
@@ -101,6 +117,12 @@ export interface InsuranceInfoRow {
   coverage_start_date: string | null;
   coverage_end_date: string | null;
   status: DbInsuranceStatus;
+  network_type: 'PPO' | 'HMO' | 'EPO' | null;
+  individual_deductible_cents: number | null;
+  deductible_met_cents: number | null;
+  out_of_pocket_max_cents: number | null;
+  out_of_pocket_met_cents: number | null;
+  copays: BenefitsCopaysCents | null;
   created_at: string;
   updated_at: string;
 }
@@ -355,27 +377,6 @@ export interface MedicalRecordRow {
   updated_at: string;
 }
 
-export interface BenefitsPlanRow {
-  id: string;
-  patient_id: string | null;
-  organization_id: string | null;
-  plan_id: string;
-  plan_name: string;
-  network_type: 'PPO' | 'HMO' | 'EPO';
-  individual_deductible: number;
-  deductible_met: number;
-  out_of_pocket_max: number;
-  out_of_pocket_met: number;
-  copays: {
-    primaryCare: number;
-    specialist: number;
-    urgentCare: number;
-    emergencyRoom: number;
-    genericRx: number;
-  };
-  created_at: string;
-}
-
 export interface AuditLogRow {
   id: string;
   organization_id: string | null;
@@ -412,7 +413,6 @@ export interface Database {
   prior_authorizations: PriorAuthorizationRow;
   lab_results: LabResultRow;
   medical_records: MedicalRecordRow;
-  benefits_plans: BenefitsPlanRow;
   audit_logs: AuditLogRow;
 }
 

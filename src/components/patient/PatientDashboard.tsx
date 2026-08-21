@@ -58,7 +58,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ onOpenAIAssi
     isSupabaseConfigured,
   );
   const { data: realPlans } = useAsync<BenefitsPlan[]>(
-    async () => (await getRepositories().benefitsPlans.list()).map(mapBenefitsPlan),
+    async () => (await getRepositories().insuranceInfo.list()).map(mapBenefitsPlan),
     isSupabaseConfigured,
   );
   const usingLiveAppts = isSupabaseConfigured && !!realAppts && realAppts.length > 0;
