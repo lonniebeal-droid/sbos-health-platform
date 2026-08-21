@@ -74,15 +74,23 @@ export function mapLabResult(row: LabResultRow): LabOrderDisplay {
   };
 }
 
-/** PriorAuthorizationWithNames -> the UI PriorAuth domain type. */
+/**
+ * PriorAuthorizationWithNames -> the UI PriorAuth domain type. Live
+ * `patients` carries name directly (no user join needed); the linked
+ * insurance_info row (when one exists) supplies the payer name. This table
+ * is INTERNAL TRACKING ONLY — there is no external payer submission
+ * integration (no EDI 278 transaction, no payer API call) anywhere in this
+ * app; `aiRecommendation` is a real LLM call's output, not a verified payer
+ * or clinical-guideline decision.
+ */
 export function mapPriorAuth(row: PriorAuthorizationWithNames): PriorAuth {
-  const providerName = row.provider?.user?.full_name ?? undefined;
+  const providerName = row.provider?.full_name ?? undefined;
   const date = (row.created_at ?? '').slice(0, 10);
   return {
     id: row.id,
     authNumber: `PA-${row.id.slice(0, 8).toUpperCase()}`,
-    patientId: row.patient_id ?? undefined,
-    patientName: row.patient?.user?.full_name ?? 'Unknown Patient',
+    patientId: row.patient_id,
+    patientName: row.patient?.full_name ?? 'Unknown Patient',
     requestingProvider: providerName,
     providerName,
     requestedService: row.requested_service,
@@ -96,6 +104,7 @@ export function mapPriorAuth(row: PriorAuthorizationWithNames): PriorAuth {
     clinicalNotes: row.clinical_notes ?? undefined,
     clinicalNotesSummary: row.clinical_notes ?? undefined,
     aiRecommendation: row.ai_recommendation ?? undefined,
+    payerName: row.patient?.insurance?.payer_name ?? undefined,
   };
 }
 

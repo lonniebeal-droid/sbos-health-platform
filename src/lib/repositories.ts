@@ -326,12 +326,14 @@ export function createRepositories(client: SupabaseClient) {
 
     priorAuths: {
       ...crud<PriorAuthorizationRow>(client, 'prior_authorizations'),
-      /** Prior authorizations with patient + provider display names. */
+      /** Prior authorizations with patient (+ linked insurance, when any) and
+       * provider display names. INTERNAL TRACKING ONLY — no external payer
+       * submission integration exists. */
       async listDetailed(): Promise<PriorAuthorizationWithNames[]> {
         return unwrap<PriorAuthorizationWithNames[]>(
           await client
             .from('prior_authorizations')
-            .select('*, patient:patients(user:users(full_name)), provider:providers(user:users(full_name))')
+            .select('*, patient:patients(full_name, insurance:insurance_info(*)), provider:users(full_name)')
             .order('created_at', { ascending: false }),
         );
       },

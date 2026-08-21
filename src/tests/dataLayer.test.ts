@@ -290,6 +290,71 @@ describe('repositories', () => {
     expect(seenOps).toContainEqual(['single']);
     expect(row.status).toBe('approved');
   });
+
+  it('priorAuths.updateStatus supports every status the live CHECK constraint allows', async () => {
+    const statuses = ['pending', 'approved', 'denied', 'info_requested'] as const;
+    for (const status of statuses) {
+      let seenOps: unknown[][] = [];
+      const repos = createRepositories(fakeClient((_t, ops) => {
+        seenOps = ops;
+        return { data: { id: 'pa1', status }, error: null };
+      }));
+      const row = await repos.priorAuths.updateStatus('pa1', status);
+      expect(seenOps).toContainEqual(['update', { status }]);
+      expect(row.status).toBe(status);
+    }
+  });
+
+  it('priorAuths.listDetailed joins patient (with insurance) and provider display identity', async () => {
+    let seenTable = '';
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((table, ops) => {
+      seenTable = table; seenOps = ops;
+      return {
+        data: [{
+          id: 'pa1', patient: { full_name: 'Sarah Jenkins', insurance: { payer_name: 'SBOS Gold Premier PPO' } },
+          provider: { full_name: 'Dr. Chloe Bennett' },
+        }],
+        error: null,
+      };
+    }));
+    const rows = await repos.priorAuths.listDetailed();
+    expect(seenTable).toBe('prior_authorizations');
+    expect(seenOps).toContainEqual(['select', '*, patient:patients(full_name, insurance:insurance_info(*)), provider:users(full_name)']);
+    expect(seenOps).toContainEqual(['order', 'created_at', { ascending: false }]);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('priorAuths.listDetailed returns an empty array (not an error) when there are no requests yet', async () => {
+    const repos = createRepositories(fakeClient(() => ({ data: [], error: null })));
+    const rows = await repos.priorAuths.listDetailed();
+    expect(rows).toEqual([]);
+  });
+
+  it('priorAuths.create surfaces the Postgrest FK-violation error for an invalid patient/org instead of silently succeeding', async () => {
+    const repos = createRepositories(fakeClient(() => ({
+      data: null,
+      error: { message: 'insert or update on table "prior_authorizations" violates foreign key constraint "prior_authorizations_patient_id_fkey"' },
+    })));
+    await expect(repos.priorAuths.create({
+      patient_id: 'does-not-exist', provider_id: 'provider-1', organization_id: 'org-1',
+      requested_service: 'MRI Brain', icd10_code: 'G44.209', cpt_code: '70553',
+      status: 'pending', clinical_notes: null, ai_recommendation: null,
+    })).rejects.toThrow(/foreign key constraint/);
+  });
+
+  // Same caveat as the claims/patients tests above: this repository does not
+  // itself add an organization_id filter — scoping depends entirely on RLS,
+  // which is disabled on the live project today.
+  it('priorAuths.listDetailed does not itself filter by organization_id', async () => {
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((_t, ops) => {
+      seenOps = ops;
+      return { data: [], error: null };
+    }));
+    await repos.priorAuths.listDetailed();
+    expect(seenOps.some((op) => op[0] === 'eq' && op[1] === 'organization_id')).toBe(false);
+  });
 });
 
 describe('organizationService', () => {

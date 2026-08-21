@@ -273,10 +273,15 @@ export interface ClaimWithDetails extends ClaimRow {
   claim_status_events: ClaimStatusEventRow[];
 }
 
-/** A prior authorization with patient + provider display names. */
+/**
+ * A prior authorization with patient (+ its insurance record, when one
+ * exists) and provider display names. There is no external payer submission
+ * integration anywhere in this app — this table is INTERNAL TRACKING ONLY,
+ * not a real EDI 278 transaction or payer API call.
+ */
 export interface PriorAuthorizationWithNames extends PriorAuthorizationRow {
-  patient: { user: { full_name: string } | null } | null;
-  provider: { user: { full_name: string } | null } | null;
+  patient: { full_name: string; insurance: InsuranceInfoRow | null } | null;
+  provider: { full_name: string } | null;
 }
 
 export interface PrescriptionRow {
@@ -295,9 +300,9 @@ export interface PrescriptionRow {
 
 export interface PriorAuthorizationRow {
   id: string;
-  patient_id: string | null;
-  provider_id: string | null;
-  organization_id: string | null;
+  organization_id: string;
+  patient_id: string;
+  provider_id: string;
   requested_service: string;
   icd10_code: string;
   cpt_code: string;
@@ -305,6 +310,7 @@ export interface PriorAuthorizationRow {
   clinical_notes: string | null;
   ai_recommendation: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface LabResultRow {
@@ -374,7 +380,7 @@ export interface AuditLogRow {
 // Insert payloads: id/created_at/defaults are DB-generated, so omit them.
 export type OrganizationInsert = Omit<OrganizationRow, 'id' | 'created_at' | 'updated_at'>;
 export type AppointmentInsert = Omit<AppointmentRow, 'id' | 'created_at' | 'updated_at'>;
-export type PriorAuthorizationInsert = Omit<PriorAuthorizationRow, 'id' | 'created_at'>;
+export type PriorAuthorizationInsert = Omit<PriorAuthorizationRow, 'id' | 'created_at' | 'updated_at'>;
 export type AuditLogInsert = Omit<AuditLogRow, 'id' | 'timestamp'>;
 
 /** Table-name → row-type registry (handy for generic helpers/tests). `providers` is

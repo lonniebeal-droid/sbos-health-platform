@@ -49,13 +49,13 @@ export const PriorAuthEngine: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: `Prior Authorization Clinical Necessity Evaluation for requested service "${newRequestedService}", CPT ${newCptCode}, ICD ${newIcdCode}. Notes: "${newClinicalNotes}". Does this meet Milliman Care Guidelines (MCG)? Provide pass/fail recommendation.`,
+          prompt: `Summarize the clinical necessity case for requested service "${newRequestedService}", CPT ${newCptCode}, ICD ${newIcdCode}, based on these notes: "${newClinicalNotes}". This is a staff-facing summary only — do not claim this matches any specific commercial guideline set (e.g. MCG) or represents a payer decision.`,
           context: 'insurance_admin'
         })
       });
       const data = await response.json();
-      
-      const aiRecommendation = data.reply || 'AI Analysis: Meets MCG clinical criteria based on failed 1st line pharmaceutical trial.';
+
+      const aiRecommendation = data.reply || 'AI clinical-necessity summary unavailable — review clinical notes manually.';
 
       if (canPersistNewPa) {
         const repos = getRepositories();
@@ -97,6 +97,7 @@ export const PriorAuthEngine: React.FC = () => {
             clinicalNotes: created.clinical_notes ?? undefined,
             clinicalNotesSummary: created.clinical_notes ?? undefined,
             aiRecommendation: created.ai_recommendation ?? undefined,
+            payerName: patient.insurance?.payer_name ?? undefined,
           };
           setLocalCreated((prev) => [newAuth, ...prev]);
           setSelectedId(newAuth.id);
@@ -134,7 +135,7 @@ export const PriorAuthEngine: React.FC = () => {
         status: 'pending',
         submittedDate: new Date().toISOString().split('T')[0],
         clinicalNotes: newClinicalNotes,
-        aiRecommendation: 'AI Analysis: High approval likelihood. Clinical necessity documented.'
+        aiRecommendation: 'AI clinical-necessity summary unavailable — review clinical notes manually.'
       };
       setLocalOnlyIds((prev) => new Set(prev).add(newAuth.id));
       setLocalCreated((prev) => [newAuth, ...prev]);
@@ -168,7 +169,7 @@ export const PriorAuthEngine: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <ShieldAlert className="w-5 h-5 text-teal-400" />
-            <h2 className="font-bold text-lg">AI Prior Authorization & Clinical Necessity Engine</h2>
+            <h2 className="font-bold text-lg">Prior Authorization Requests</h2>
             <span
               title={canPersistNewPa ? 'Loaded from Supabase; new requests persist when patient/provider rows exist' : 'Demo data fallback'}
               className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -180,13 +181,19 @@ export const PriorAuthEngine: React.FC = () => {
               {canPersistNewPa ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
               {canPersistNewPa ? 'Live data' : 'Demo data'}
             </span>
+            <span
+              title="No external payer submission integration exists yet — nothing here is sent to a real payer."
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-200 border border-slate-400/30"
+            >
+              Internal tracking only
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
             {loading
               ? 'Loading prior authorizations...'
               : error
                 ? `Could not load live prior authorizations (${error}); showing demo data.`
-                : 'Accelerate prior authorizations with instant Milliman Care Guidelines (MCG) matching and AI payer rule verification.'}
+                : 'Internal request tracking with an AI-drafted clinical-necessity note for staff review. Not a real Milliman Care Guidelines (MCG) match and not submitted to any payer — approve/deny are manual staff decisions here.'}
           </p>
         </div>
       </div>
@@ -273,7 +280,7 @@ export const PriorAuthEngine: React.FC = () => {
                     <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400">{pa.id}</span>
                     <h4 className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">{pa.requestedService}</h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Patient: {pa.patientName} • CPT {pa.cptCode}
+                      Patient: {pa.patientName} • CPT {pa.cptCode}{pa.payerName ? ` • ${pa.payerName}` : ''}
                     </p>
                   </div>
 

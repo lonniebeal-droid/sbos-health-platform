@@ -172,6 +172,9 @@ export interface PriorAuth {
   aiNecessityScore?: number; // 0-100 alignment with clinical guidelines
   aiRecommendation?: string;
   clinicalNotesSummary?: string;
+  /** From the patient's linked insurance_info row, when one exists. There is no
+   * external payer submission integration — this request is tracked internally only. */
+  payerName?: string;
 }
 
 export interface Prescription {

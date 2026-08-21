@@ -314,12 +314,12 @@ describe('mapPriorAuth', () => {
     organization_id: 'org-1', requested_service: 'Cardiac MRI with Contrast',
     icd10_code: 'I25.10', cpt_code: '75561', status: 'approved',
     clinical_notes: 'Persistent atypical angina.', ai_recommendation: 'Approve: meets InterQual.',
-    created_at: '2026-07-21T00:00:00Z',
-    patient: { user: { full_name: 'Sarah Jenkins' } },
-    provider: { user: { full_name: 'Dr. Chloe Bennett' } },
+    created_at: '2026-07-21T00:00:00Z', updated_at: '2026-07-21T00:00:00Z',
+    patient: { full_name: 'Sarah Jenkins', insurance: baseInsurance },
+    provider: { full_name: 'Dr. Chloe Bennett' },
   };
 
-  it('maps names, codes, status, notes, and derives an auth number', () => {
+  it('maps names, codes, status, notes, payer, and derives an auth number', () => {
     const p = mapPriorAuth(row);
     expect(p.patientName).toBe('Sarah Jenkins');
     expect(p.requestingProvider).toBe('Dr. Chloe Bennett');
@@ -328,6 +328,12 @@ describe('mapPriorAuth', () => {
     expect(p.status).toBe('approved');
     expect(p.aiRecommendation).toBe('Approve: meets InterQual.');
     expect(p.authNumber).toBe('PA-AA000000');
+    expect(p.payerName).toBe('SBOS Gold Premier PPO');
+  });
+
+  it('leaves payerName undefined when the patient has no linked insurance', () => {
+    const p = mapPriorAuth({ ...row, patient: { full_name: 'Sarah Jenkins', insurance: null } });
+    expect(p.payerName).toBeUndefined();
   });
 
   it('degrades gracefully when joins are missing', () => {
