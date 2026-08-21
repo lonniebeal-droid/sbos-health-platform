@@ -140,6 +140,10 @@ export interface ClaimRow {
   patient_name: string | null;
   provider_name: string | null;
   provider_npi: string | null;
+  // See 20260725050000_claims_denial_reason.sql.
+  denial_code: string | null;
+  denial_reason: string | null;
+  adjudication_method: 'automated' | 'manual' | null;
   created_at: string;
 }
 

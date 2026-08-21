@@ -59,6 +59,48 @@ describe('repositories', () => {
     expect(row.status).toBe('cancelled');
   });
 
+  it('claims.approve pays the claim, records the amount, and clears any denial', async () => {
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((_t, ops) => {
+      seenOps = ops;
+      return { data: { id: 'clm1', status: 'paid', approved_amount: 120 }, error: null };
+    }));
+    const row = await repos.claims.approve('clm1', 120, 'manual');
+    expect(seenOps).toContainEqual([
+      'update',
+      { status: 'paid', approved_amount: 120, adjudication_method: 'manual', denial_code: null, denial_reason: null },
+    ]);
+    expect(seenOps).toContainEqual(['eq', 'id', 'clm1']);
+    expect(row.status).toBe('paid');
+  });
+
+  it('claims.approve defaults adjudication_method to manual', async () => {
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((_t, ops) => {
+      seenOps = ops;
+      return { data: { id: 'clm1', status: 'paid' }, error: null };
+    }));
+    await repos.claims.approve('clm1', 50);
+    expect(seenOps).toContainEqual([
+      'update',
+      { status: 'paid', approved_amount: 50, adjudication_method: 'manual', denial_code: null, denial_reason: null },
+    ]);
+  });
+
+  it('claims.deny records a structured denial code and reason', async () => {
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((_t, ops) => {
+      seenOps = ops;
+      return { data: { id: 'clm2', status: 'denied' }, error: null };
+    }));
+    const row = await repos.claims.deny('clm2', 'MISSING_DOCS', 'Chart notes not received', 'automated');
+    expect(seenOps).toContainEqual([
+      'update',
+      { status: 'denied', denial_code: 'MISSING_DOCS', denial_reason: 'Chart notes not received', adjudication_method: 'automated' },
+    ]);
+    expect(row.status).toBe('denied');
+  });
+
   it('prescriptions.requestRefill sets refill_requested status', async () => {
     let seenOps: unknown[][] = [];
     const repos = createRepositories(fakeClient((_t, ops) => {

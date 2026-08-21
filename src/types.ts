@@ -113,6 +113,15 @@ export interface Appointment {
   meetLink?: string;
 }
 
+export type DenialCode =
+  | 'MISSING_DOCS'
+  | 'DUPLICATE_CLAIM'
+  | 'NOT_COVERED'
+  | 'CODING_ERROR'
+  | 'OUT_OF_NETWORK'
+  | 'PRIOR_AUTH_REQUIRED'
+  | 'OTHER';
+
 export interface Claim {
   id: string;
   claimNumber: string;
@@ -131,6 +140,11 @@ export interface Claim {
   aiRiskScore: number; // 0-100 fraud/abuse risk score
   aiRiskFlags: string[];
   plainEnglishExplanation: string;
+  /** Present only when status = 'denied'. */
+  denialCode?: DenialCode | null;
+  denialReason?: string | null;
+  /** Set when a claims-automation rule adjudicated this claim without staff input. */
+  adjudicationMethod?: 'automated' | 'manual';
 }
 
 export interface PriorAuth {

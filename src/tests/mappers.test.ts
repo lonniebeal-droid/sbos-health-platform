@@ -170,6 +170,7 @@ describe('mapClaim', () => {
     icd10_codes: ['R07.9', 'I10'], cpt_codes: ['71250', '99214'], ai_risk_score: 4, ai_risk_flags: [],
     plain_english_explanation: 'Covered at 90%.',
     patient_name: null, provider_name: null, provider_npi: null,
+    denial_code: null, denial_reason: null, adjudication_method: null,
     created_at: '2026-07-11T00:00:00Z',
     patient: { user: { full_name: 'Sarah Jenkins' } },
     provider: { npi: '1982736410', user: { full_name: 'Dr. James Wilson' } },
@@ -202,6 +203,24 @@ describe('mapClaim', () => {
     expect(c.patientName).toBe('Sarah Jenkins');
     expect(c.providerName).toBe('Dr. James Wilson');
     expect(c.providerNpi).toBe('1982736410');
+  });
+
+  it('maps denial code/reason and adjudication method when present', () => {
+    const c = mapClaim({
+      ...row,
+      status: 'denied',
+      denial_code: 'MISSING_DOCS',
+      denial_reason: 'Chart notes not received',
+      adjudication_method: 'manual',
+    });
+    expect(c.denialCode).toBe('MISSING_DOCS');
+    expect(c.denialReason).toBe('Chart notes not received');
+    expect(c.adjudicationMethod).toBe('manual');
+  });
+
+  it('leaves adjudicationMethod undefined (not null) when the row has none', () => {
+    const c = mapClaim(row);
+    expect(c.adjudicationMethod).toBeUndefined();
   });
 });
 

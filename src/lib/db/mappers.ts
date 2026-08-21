@@ -120,6 +120,9 @@ export function mapClaim(row: ClaimWithNames): Claim {
     aiRiskScore: row.ai_risk_score,
     aiRiskFlags: row.ai_risk_flags ?? [],
     plainEnglishExplanation: row.plain_english_explanation ?? '',
+    denialCode: (row.denial_code as Claim['denialCode']) ?? null,
+    denialReason: row.denial_reason ?? null,
+    adjudicationMethod: row.adjudication_method ?? undefined,
   };
 }
 

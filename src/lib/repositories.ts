@@ -138,6 +138,50 @@ export function createRepositories(client: SupabaseClient) {
           await client.from('claims').update({ status }).eq('id', id).select().single(),
         );
       },
+      /** Pays a claim and records how much, replacing the bare status flip
+       * updateStatus() did on its own — payer staff need the paid amount on
+       * record, not just "paid". */
+      async approve(
+        id: string,
+        approvedAmount: number,
+        method: 'automated' | 'manual' = 'manual',
+      ): Promise<ClaimRow> {
+        return unwrap<ClaimRow>(
+          await client
+            .from('claims')
+            .update({
+              status: 'paid',
+              approved_amount: approvedAmount,
+              adjudication_method: method,
+              denial_code: null,
+              denial_reason: null,
+            })
+            .eq('id', id)
+            .select()
+            .single(),
+        );
+      },
+      /** Denies a claim with a structured reason instead of a bare status flip. */
+      async deny(
+        id: string,
+        denialCode: string,
+        denialReason: string,
+        method: 'automated' | 'manual' = 'manual',
+      ): Promise<ClaimRow> {
+        return unwrap<ClaimRow>(
+          await client
+            .from('claims')
+            .update({
+              status: 'denied',
+              denial_code: denialCode,
+              denial_reason: denialReason,
+              adjudication_method: method,
+            })
+            .eq('id', id)
+            .select()
+            .single(),
+        );
+      },
     },
 
     prescriptions: {
