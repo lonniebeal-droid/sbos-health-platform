@@ -198,15 +198,20 @@ const RX_STATUS_MAP: Record<DbRxStatus, Prescription['status']> = {
   discontinued: 'completed',
 };
 
-/** PrescriptionWithProvider -> the UI Prescription domain type. */
+/**
+ * PrescriptionWithProvider -> the UI Prescription domain type. Internal
+ * medication tracking only — there is no e-prescribing network (e.g.
+ * Surescripts) integration anywhere in this app, so nothing here is ever
+ * transmitted to a real pharmacy.
+ */
 export function mapPrescription(row: PrescriptionWithProvider): Prescription {
   return {
     id: row.id,
-    patientId: row.patient_id ?? undefined,
+    patientId: row.patient_id,
     medicationName: row.medication_name,
     dosage: row.dosage,
     frequency: row.frequency,
-    prescribedBy: row.provider?.user?.full_name ?? 'Unknown Provider',
+    prescribedBy: row.provider?.full_name ?? 'Unknown Provider',
     refillsRemaining: row.refills_remaining,
     pharmacyName: row.pharmacy_name ?? '',
     status: RX_STATUS_MAP[row.status],

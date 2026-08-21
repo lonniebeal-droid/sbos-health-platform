@@ -176,7 +176,8 @@ describe('mapPrescription', () => {
     pharmacy_name: 'Mission Pharmacy',
     status: 'active',
     created_at: '2026-07-22T00:00:00Z',
-    provider: { user: { full_name: 'Dr. James Wilson' } },
+    updated_at: '2026-07-22T00:00:00Z',
+    provider: { full_name: 'Dr. James Wilson' },
   };
 
   it('maps live prescriptions with provider and pharmacy details', () => {
@@ -197,6 +198,10 @@ describe('mapPrescription', () => {
   it('collapses expired and discontinued rows to completed in the UI', () => {
     expect(mapPrescription({ ...row, status: 'expired' }).status).toBe('completed');
     expect(mapPrescription({ ...row, status: 'discontinued' }).status).toBe('completed');
+  });
+
+  it('falls back to Unknown Provider when the provider join is missing (no live providers table)', () => {
+    expect(mapPrescription({ ...row, provider: null }).prescribedBy).toBe('Unknown Provider');
   });
 });
 

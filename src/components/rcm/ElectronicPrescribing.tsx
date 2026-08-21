@@ -79,6 +79,12 @@ export const ElectronicPrescribing: React.FC = () => {
               {usingLive ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
               {usingLive ? 'Live prescriptions' : 'Demo e-Rx'}
             </span>
+            <span
+              title="No e-prescribing network (e.g. Surescripts) integration exists — nothing here is ever sent to a real pharmacy."
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-200 border border-slate-400/30"
+            >
+              Internal tracking only
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
             {loading
@@ -86,8 +92,8 @@ export const ElectronicPrescribing: React.FC = () => {
               : error
                 ? `Could not load live prescriptions (${error}); showing demo data.`
                 : usingLive
-                  ? 'Review live prescriptions with local allergy checks. A real e-prescribing network connection is still required before live prescription transmission.'
-                  : 'Demo prescribing workflow with local allergy checks. A real e-prescribing network connection is still required before live prescription transmission.'}
+                  ? 'Review live prescriptions with local allergy checks. No real e-prescribing network connection exists — new orders below are demo-only and never transmitted.'
+                  : 'Demo prescribing workflow with local allergy checks. No real e-prescribing network connection exists — nothing here is ever transmitted.'}
           </p>
         </div>
       </div>
