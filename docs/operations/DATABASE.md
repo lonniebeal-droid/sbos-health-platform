@@ -1,86 +1,167 @@
 # DATABASE — SBOS HealthOS
 
-Supabase Postgres. Source of truth: `supabase/migrations/*.sql` and
-`src/lib/db/database.types.ts` (hand-written row types mirroring the schema).
+Supabase Postgres. Source of truth: the live "SBOS HealthOS" project (ref
+`yqlvcmydledbkudstqfo`) — verify current shape via Supabase MCP
+(`list_tables`, `execute_sql` introspection) or `supabase db diff` against a
+linked project, not by reading migration files in isolation. Application-side
+row types live in `src/lib/db/database.types.ts` and are hand-written to
+mirror the live schema (not generated) — they can drift; re-verify against
+the live project before trusting them for anything security-relevant.
 
 ## Migrations (applied in order)
 
+The live project's actual foundational schema was originally built via five
+migrations applied directly to the hosted project without being committed as
+files in this repo (`reconcile_core_schema`, `insurance_info`,
+`encounters_and_coding`, `claims_foundation`, `claims_payments_foundation`,
+2026-08-19). `20260819000000_baseline_core_schema.sql` reconstructs that
+foundational schema from live introspection so the migrations folder can
+actually rebuild the real schema from scratch. An earlier, unrelated
+migration lineage (`20260724000000_enterprise_schema.sql`,
+`20260725000000_auth_integration_rls.sql`, and four more `20260725*` files)
+was removed from this repo — it was never applied to the live project and
+described a schema this project does not have (a `providers` table, a
+`user_role` enum, `payer_organization_id` on claims, `phone`/`password_hash`
+on `users`).
+
 | Migration | Adds |
 | --------- | ---- |
-| `20260724000000_enterprise_schema.sql` | Core schema: 10 tables, 7 enums, base policies |
-| `20260725000000_auth_integration_rls.sql` | Auth linkage (`public.users`↔`auth.users`), `handle_new_user` trigger, helper functions, 12 RLS policies |
-| `20260725010000_patient_profile_fields.sql` | Additional patient profile columns |
-| `20260725020000_claims_visibility.sql` | Claims RLS: patient/provider visibility on top of payer scope |
-| `20260725030000_medical_records.sql` | `medical_records` table (+2 indexes, RLS) |
-| `20260725040000_benefits_plans.sql` | `benefits_plans` table (+1 index, RLS) |
-| `20260725050000_claims_denial_reason.sql` | Structured claim-denial reason field |
-| `20260821000000_add_payer_employer_roles.sql` | Payer/employer role compatibility for normalized schemas |
-| `20260821000100_add_appointments_table.sql` | Appointment-table compatibility + indexes |
-| `20260821000200_add_prior_authorizations_table.sql` | Prior-authorization-table compatibility + indexes |
-| `20260821000300_add_prescriptions_table.sql` | Prescription-table compatibility + indexes |
-| `20260821000400_add_lab_results_table.sql` | Lab-results-table compatibility + indexes |
-| `20260821000500_add_medical_records_table.sql` | Medical-records reconciliation, including required `updated_at` + indexes |
-| `20260821000600_add_benefits_to_insurance_info.sql` | Benefits fields where normalized `insurance_info` exists |
-| `20260821000700_add_audit_logs_table.sql` | Normalized `audit_logs.created_at` field + indexes |
-| `20260821172346_secure_profile_provisioning_and_audit_schema.sql` | Safe signup profiles and column-level profile update restrictions |
+| `20260819000000_baseline_core_schema.sql` | Reconstructed foundational schema: organizations, users, patients, insurance_info, diagnosis_codes, procedure_codes, encounters, encounter_diagnoses, encounter_procedures, claims + 5 claim child tables |
+| `20260821000000_add_payer_employer_roles.sql` | `insurance`/`employer` added to the `users.role` check constraint |
+| `20260821000100_add_appointments_table.sql` | `appointments` table + indexes |
+| `20260821000200_add_prior_authorizations_table.sql` | `prior_authorizations` table + indexes |
+| `20260821000300_add_prescriptions_table.sql` | `prescriptions` table + indexes |
+| `20260821000400_add_lab_results_table.sql` | `lab_results` table + indexes |
+| `20260821000500_add_medical_records_table.sql` | `medical_records` table + indexes |
+| `20260821000600_add_benefits_to_insurance_info.sql` | Benefits fields (deductibles, OOP max, copays) added to `insurance_info` |
+| `20260821000700_add_audit_logs_table.sql` | `audit_logs` table + indexes |
+| `20260821000800_secure_profile_provisioning_and_rls.sql` | `current_user_org_id()`/`current_user_role()`, `handle_new_user()` signup trigger, RLS enabled on all tables with tenant-isolation policies |
+| `20260821000900_lock_down_rls_helper_function_execute.sql` | Revokes `anon`/`authenticated` EXECUTE on the RLS helper functions beyond what `REVOKE ... FROM PUBLIC` actually strips |
+| `20260821172346_secure_profile_provisioning_and_audit_schema.sql` | Superseded — this file's own prerequisites (a `phone` column on `users`, and the helper functions predating it) never existed live; never applied to the hosted project |
+| `20260821180000_require_active_profile_for_rls.sql` | `current_user_org_id()`/`current_user_role()` now require `is_active = true` — a deactivated account can no longer resolve a tenant/role even with a live session |
+| `20260821181000_allow_unassigned_users_nullable_org.sql` | Fixes `users.organization_id` from `NOT NULL` to nullable — required for `handle_new_user()`'s "new signups are unassigned" design to actually work |
+| `20260821182000_per_role_write_rbac.sql` | Per-role write policies (see RLS section below) |
 
-Apply locally with `supabase db reset` (or `supabase db push` against a target).
+Apply locally with `supabase db reset` (or `supabase db push` against a
+target) — this now actually reconstructs the live schema; it did not before
+`20260819000000_baseline_core_schema.sql` was added.
 
-## Enums
+## Roles
 
-`user_role` (patient, provider, insurance, employer, admin) ·
-`org_type` (health_system, payer, employer_group, clinic) ·
-`claim_status` (submitted, in_review, adjudicated, approved, denied, paid) ·
-`appointment_type` (telehealth, in_person, urgent_care, specialist) ·
-`appointment_status` (scheduled, in_progress, completed, cancelled) ·
-`rx_status` (active, refill_requested, expired, discontinued) ·
-`prior_auth_status` (pending, approved, denied, info_requested)
+`users.role` is plain `text` with a CHECK constraint, not an enum:
+`admin`, `provider`, `medical_biller`, `coder`, `front_desk`, `staff`,
+`patient`, `insurance`, `employer`. Status/type fields on other tables
+(`claims.status`, `appointments.status`, etc.) are likewise `text` + CHECK,
+not Postgres enum types — verify exact allowed values via
+`pg_get_constraintdef` before assuming a value name.
 
-## Tables (12)
+## Tables (21)
 
 | Table | Purpose | Key relationships |
 | ----- | ------- | ----------------- |
-| `organizations` | Tenants (health systems, payers, employers, clinics) | parent of users/patients/providers |
-| `users` | Profile table keyed to `auth.users(id)`; role + org | → organizations |
-| `patients` | Patient demographics, insurance member id, vitals, allergies, conditions | → users, organizations |
-| `providers` | Clinician records (NPI, specialty, license, fee) | → users, organizations |
-| `appointments` | Visits (type, status, scheduled_at, telehealth URL, chief complaint) | → patients, providers, organizations |
-| `claims` | Insurance claims (ICD-10/CPT arrays, amounts, status, AI risk score/flags) | → patients, providers, payer org |
-| `prescriptions` | Medications (dosage, frequency, refills, status, pharmacy) | → patients, providers, organizations |
-| `prior_authorizations` | Prior-auth requests (service, ICD/CPT, status, AI recommendation) | → patients, providers, organizations |
-| `lab_results` | Lab results (LOINC, value, reference range, status) | → patients, ordering provider, organizations |
-| `medical_records` | Patient medical records | → patients |
-| `benefits_plans` | Employer/payer benefit plans | → organizations |
-| `audit_logs` | Audit trail (actor, action, resource, ip, created_at) | → organizations, actor |
+| `organizations` | Tenants | root of every other table's `organization_id` |
+| `users` | Profile table keyed to `auth.users(id)`; role + org (org nullable until an admin assigns one) | → organizations |
+| `patients` | Patient demographics (name, DOB, gender, contact, address) | → organizations, users (optional, self-service link) |
+| `insurance_info` | Payer/plan/member info + benefits (deductibles, OOP max, copays) | → organizations, patients |
+| `diagnosis_codes` | Org-scoped ICD-10 code catalog | → organizations |
+| `procedure_codes` | Org-scoped CPT code catalog | → organizations |
+| `encounters` | Clinical visits | → organizations, patients, users (provider) |
+| `encounter_diagnoses` | Diagnosis codes attached to an encounter | → encounters, diagnosis_codes |
+| `encounter_procedures` | Procedure codes attached to an encounter (with charge) | → encounters, procedure_codes |
+| `claims` | Insurance claims, built from a coded encounter | → organizations, patients, encounters, insurance_info |
+| `claim_lines` | Billed lines on a claim | → claims, encounter_procedures |
+| `claim_status_events` | Claim status change history | → claims |
+| `claim_payments` | Payments posted against a claim | → claims, claim_lines |
+| `claim_adjustments` | Contractual/write-off/correction adjustments | → claims, claim_lines |
+| `claim_denials` | Denial records | → claims, claim_lines |
+| `appointments` | Scheduled visits (type, status, telehealth URL) | → organizations, patients, users (provider) |
+| `prior_authorizations` | Prior-auth requests | → organizations, patients, users (provider) |
+| `prescriptions` | Medications | → organizations, patients, users (provider) |
+| `lab_results` | Lab results (LOINC, value, reference range) | → organizations, patients, users (ordering provider) |
+| `medical_records` | Patient medical records | → organizations, patients |
+| `audit_logs` | Internal application action log (not a certified compliance record) | → organizations, users (actor, both nullable for system events) |
 
-Column-level detail lives in `src/lib/db/database.types.ts` (the row interfaces).
+There is no `providers` table — a provider is a `users` row with
+`role = 'provider'`. There is no `benefits_plans` table — benefits fields
+live directly on `insurance_info`.
+
+Column-level detail lives in `src/lib/db/database.types.ts`, but re-verify
+against the live project for anything security-relevant.
 
 ## Relationships
 
-See the ER diagram in [ARCHITECTURE](ARCHITECTURE.md#database). All child tables
-carry `organization_id` (directly or transitively) for tenant scoping.
+Every table except `organizations` carries `organization_id` directly
+(`users.organization_id` is nullable; everything else is `NOT NULL`).
 
 ## Indexes
 
-- Primary keys and foreign keys create implicit indexes.
-- Explicit indexes: `medical_records` (2), `benefits_plans` (1). Other hot-path
-  indexes are **not yet defined** — a known optimization gap for larger data
-  ([KNOWN_ISSUES](KNOWN_ISSUES.md)).
+- Primary keys, foreign keys, and unique constraints create implicit indexes.
+- Explicit `idx_*` btree indexes exist on the tenant-scoping `organization_id`
+  column of every child table, plus the main lookup FKs (`patient_id`,
+  `claim_id`, `encounter_id`). Verify current indexes with
+  `select * from pg_indexes where schemaname='public'` before assuming one
+  exists for a specific query pattern.
 
 ## Row-Level Security (RLS)
 
-- ~20 policies across migrations, keyed on helper functions:
-  - `current_user_org_id()` — the signed-in user's organization.
-  - `current_user_role()` — the signed-in user's role.
-- Default posture: rows are visible only within the user's organization; claims
-  are payer-scoped with an explicit patient/provider visibility exception.
-- **Verification note:** RLS parity with client-side gates has not been
-  exhaustively verified for every table. `npm run verify:rls` covers seeded
-  org isolation, audit-log immutability, and profile-escalation resistance.
+RLS is enabled on all 21 tables (it was disabled everywhere until
+`20260821000800_secure_profile_provisioning_and_rls.sql`). Two layers:
+
+1. **Tenant isolation** — every table's SELECT policy scopes rows to
+   `organization_id = current_user_org_id()`. `organizations` itself is
+   readable by `anon` too (a non-PHI tenant directory, needed pre-login).
+2. **Per-role write RBAC** (`20260821182000_per_role_write_rbac.sql`) —
+   INSERT/UPDATE/DELETE on top of tenant isolation are further restricted by
+   `users.role`, grounded in the app's actual write paths (see that
+   migration's header comment for the reasoning per table), not invented
+   from scratch:
+   - `patients`/`insurance_info`: `admin`, `front_desk`, `staff`,
+     `medical_biller`, `provider`.
+   - `encounters`/`diagnosis_codes`/`procedure_codes`/
+     `encounter_diagnoses`/`encounter_procedures`/`medical_records`/
+     `lab_results`: `admin`, `provider`, `coder`.
+   - `claims` and all claim child tables: `admin`, `medical_biller`,
+     `coder`, `insurance`.
+   - `prior_authorizations`: `admin`, `provider`, `medical_biller`,
+     `coder`, `insurance`.
+   - `appointments`: staff roles book freely in-org; a `patient` may only
+     insert an appointment for the `patients` row linked to their own
+     account (`current_user_patient_id()`).
+   - `prescriptions`: `admin`/`provider` write fully; a `patient` may
+     UPDATE only their own prescription row (row-level only — Postgres RLS
+     can't restrict to a single column without a separate low-privilege
+     role, so a patient can technically update any column on their own row,
+     not just `status`; see the migration for the full disclosure).
+   - `users`: a user may UPDATE only their own row, and only the
+     `full_name` column (`GRANT UPDATE (full_name)`) — role/org changes are
+     not self-service.
+   - `audit_logs`: insert + select only for any same-org authenticated
+     user (no update/delete policy exists, so both are denied outright —
+     append-only).
+- Helper functions `current_user_org_id()`, `current_user_role()`,
+  `current_user_patient_id()` are `STABLE SECURITY DEFINER`, granted
+  `EXECUTE` to `authenticated` only (not `anon`, not `PUBLIC`), and all
+  additionally require `users.is_active = true` to resolve anything — a
+  deactivated account fails every RLS check even with a live session.
+- **Known, disclosed limitations** (not silently assumed solved):
+  - The patient-ownership checks (`appointments`, `prescriptions`) resolve
+    through `patients.user_id = auth.uid()`. No self-service signup/
+    registration flow in this app currently sets that link, so a real
+    patient-role account cannot yet satisfy these checks against the live
+    database until that trusted linking path is built.
+  - `npm run verify:rls` (`scripts/verify-rls.sh`) is a local-only Docker
+    Postgres harness — it has not been run against the live hosted project,
+    only reviewed for correctness against the live schema shape.
+  - This does not establish HIPAA compliance or production PHI readiness on
+    its own.
 
 ## Migrations — future changes
 
-- Add hot-path indexes (claims by payer/status, appointments by provider/date).
-- Tables for unimplemented modules (messaging, notifications) when built.
+- Build the trusted admin path for assigning `organization_id`/`role` to a
+  newly-signed-up user (currently every signup lands `patient`/unassigned
+  with no way to promote them through the app).
+- Build the patient self-service registration flow that links a `patients`
+  row to `auth.uid()` via `patients.user_id`, so the patient-ownership RLS
+  checks above can actually be satisfied by a real signed-in patient.
 - Consider generated types (`supabase gen types typescript`) to replace the
   hand-written `database.types.ts` and prevent drift.

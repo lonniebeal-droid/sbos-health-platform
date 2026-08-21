@@ -9,7 +9,7 @@ also the repo-root [`SECURITY_AUDIT.md`](../../SECURITY_AUDIT.md).
 | ------- | ----- | ----- |
 | Signed BAA (hosting + model provider) | ❌ | Required before any real PHI. Business/legal. |
 | Access control (authN) | 🟡 | Supabase Auth for the app; AI endpoints unauthenticated. |
-| Access control (authZ) | 🟡 | Postgres RLS by org/role; seeded auth/org + patient/audit cases and profile-escalation resistance are locally verified, broader parity still pending. |
+| Access control (authZ) | 🟡 | Postgres RLS live on all 21 tables: tenant isolation + per-role write RBAC grounded in the app's actual write paths. Patient-self-service checks (booking/refill ownership) can't be satisfied yet — no signup flow links a `patients` row to `auth.uid()`. `npm run verify:rls` is reviewed for correctness against the live schema but has not actually been executed (local-only Docker harness, not run in this environment). |
 | Encryption in transit | 🟡 | HSTS set in prod; TLS terminated by the host (not provisioned). |
 | Encryption at rest | ⛔ | Provided by hosted Supabase once provisioned. |
 | Audit logging | 🟡 | `audit_logs` table + repo; not written on all mutations. |
@@ -28,12 +28,21 @@ Legend: ✅ done · 🟡 partial · ❌ missing · ⛔ blocked on infra/business
 - **Body size cap**: 256 kb, with correct `413` handling.
 - **Error hygiene**: generic client-facing messages; internal detail logged
   server-side only; correct 4xx vs 5xx status codes.
-- **Tenant isolation**: RLS keyed on `current_user_org_id()` / role. The local
-  verifier covers all 12 local public tables, provider/payer claim visibility,
-  profile hardening, and append-only audit-log behavior with 32 checks.
+- **Tenant isolation + per-role write RBAC**: RLS enabled on all 21 tables,
+  keyed on `current_user_org_id()`/`current_user_role()`. Write policies are
+  grounded in the app's actual write paths (see
+  `supabase/migrations/20260821182000_per_role_write_rbac.sql`), not
+  invented from scratch — e.g. only providers/coders/admin can write
+  clinical documentation, only billers/coders/admin/insurance can write
+  claims. `scripts/verify-rls.sh` (`npm run verify:rls`) is a local Docker
+  harness covering these cases; it has been reviewed for correctness against
+  the live schema but not executed in this environment.
 - **Profile provisioning**: signup metadata cannot select a tenant or privileged
   role. New profiles are unassigned `patient` records until a trusted
-  administrative path assigns access; client updates are limited to name/phone.
+  administrative path assigns access (not built yet); client self-service
+  updates are limited to `full_name` (no `phone` column exists on `users` —
+  that field lives on `patients`). A deactivated account (`is_active = false`)
+  fails every RLS check even with a still-valid session.
 - **Secret hygiene in repo**: no service-role key in client code; terraform DB
   password removed from the tree; `.env`/tfvars gitignored.
 - **CI**: least-privilege `GITHUB_TOKEN` (`contents: read`); `npm audit` = 0
@@ -43,7 +52,7 @@ Legend: ✅ done · 🟡 partial · ❌ missing · ⛔ blocked on infra/business
 
 | Asset | Threat | Mitigation | Residual risk |
 | ----- | ------ | ---------- | ------------- |
-| PHI in Postgres | Cross-tenant read or self-assigned privilege | RLS by org/role, restricted profile writes + local verifier | Broader table/view parity still incomplete → **medium** |
+| PHI in Postgres | Cross-tenant read or self-assigned privilege | RLS by org/role on all tables + per-role write RBAC + restricted profile writes | Patient self-service ownership checks unsatisfiable until a registration flow links `patients.user_id` → **medium** |
 | AI endpoints | Abuse / cost / prompt injection | Rate limit + input caps | Unauthenticated → **medium/high** |
 | Request bodies | Oversized/malformed DoS | 256kb cap + correct 4xx | Low |
 | Secrets | Leak via repo/image | gitignore + dev deps pruned from image | Historical terraform pwd in git history → **medium** |
@@ -55,8 +64,7 @@ Legend: ✅ done · 🟡 partial · ❌ missing · ⛔ blocked on infra/business
    the JWT secret).
 2. **Historical terraform DB password in git history** — must be **rotated**.
 3. **No CSP** — author against the SPA's real needs (Supabase, Gemini, WebRTC).
-4. **Hosted normalized-schema RLS parity remains unverified**, including the
-   `insurance_info` benefit columns that are not in the local canonical schema.
+4. **No patient self-service registration flow** — `patients.user_id` is never set by any signup path today, so the patient-ownership RLS checks (appointment booking, prescription refill) can't be satisfied by a real patient-role account yet.
 5. **In-memory rate limiter** — bypassable across multiple instances (needs Redis).
 
 ## Required before production with PHI
@@ -64,4 +72,4 @@ Legend: ✅ done · 🟡 partial · ❌ missing · ⛔ blocked on infra/business
 - Signed BAA (host + model provider); hosted Supabase.
 - Auth on AI endpoints; MFA.
 - Secret Manager; rotate the historical password.
-- Broader verified RLS parity across remaining tables/views; systematic audit logging; CSP; TLS/DNS.
+- Patient self-service registration flow (links `patients.user_id`); actually run `npm run verify:rls` against a live-schema-matching environment; systematic audit logging; CSP; TLS/DNS.
