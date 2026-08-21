@@ -19,7 +19,7 @@ Supabase Postgres. Source of truth: `supabase/migrations/*.sql` and
 | `20260821000200_add_prior_authorizations_table.sql` | Prior-authorization-table compatibility + indexes |
 | `20260821000300_add_prescriptions_table.sql` | Prescription-table compatibility + indexes |
 | `20260821000400_add_lab_results_table.sql` | Lab-results-table compatibility + indexes |
-| `20260821000500_add_medical_records_table.sql` | Medical-records-table compatibility + indexes |
+| `20260821000500_add_medical_records_table.sql` | Medical-records reconciliation, including required `updated_at` + indexes |
 | `20260821000600_add_benefits_to_insurance_info.sql` | Benefits fields where normalized `insurance_info` exists |
 | `20260821000700_add_audit_logs_table.sql` | Normalized `audit_logs.created_at` field + indexes |
 | `20260821172346_secure_profile_provisioning_and_audit_schema.sql` | Safe signup profiles and column-level profile update restrictions |

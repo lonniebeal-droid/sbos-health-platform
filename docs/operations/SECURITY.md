@@ -28,9 +28,9 @@ Legend: ✅ done · 🟡 partial · ❌ missing · ⛔ blocked on infra/business
 - **Body size cap**: 256 kb, with correct `413` handling.
 - **Error hygiene**: generic client-facing messages; internal detail logged
   server-side only; correct 4xx vs 5xx status codes.
-- **Tenant isolation**: RLS keyed on `current_user_org_id()` / role. Seeded
-  provider/payer auth mapping, cross-tenant patient isolation, and audit-log
-  append-only behavior are now reproducibly verified with `npm run verify:rls`.
+- **Tenant isolation**: RLS keyed on `current_user_org_id()` / role. The local
+  verifier covers all 12 local public tables, provider/payer claim visibility,
+  profile hardening, and append-only audit-log behavior with 32 checks.
 - **Profile provisioning**: signup metadata cannot select a tenant or privileged
   role. New profiles are unassigned `patient` records until a trusted
   administrative path assigns access; client updates are limited to name/phone.
@@ -55,7 +55,8 @@ Legend: ✅ done · 🟡 partial · ❌ missing · ⛔ blocked on infra/business
    the JWT secret).
 2. **Historical terraform DB password in git history** — must be **rotated**.
 3. **No CSP** — author against the SPA's real needs (Supabase, Gemini, WebRTC).
-4. **RLS parity still incomplete** outside the seeded auth/org + patient/audit/profile verification path.
+4. **Hosted normalized-schema RLS parity remains unverified**, including the
+   `insurance_info` benefit columns that are not in the local canonical schema.
 5. **In-memory rate limiter** — bypassable across multiple instances (needs Redis).
 
 ## Required before production with PHI
