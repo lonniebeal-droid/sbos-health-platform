@@ -374,7 +374,7 @@ export const sampleAuditLogs: AuditLog[] = [
     action: 'EHR_RECORD_VIEW',
     resource: 'Patient: Sarah Jenkins (ID: pat_001) - Lab Results',
     ipAddress: '192.168.1.42',
-    complianceLevel: 'HIPAA_STANDARD'
+    eventSeverity: 'ROUTINE_ACCESS'
   },
   {
     id: 'log_9002',
@@ -385,7 +385,7 @@ export const sampleAuditLogs: AuditLog[] = [
     action: 'CLAIM_ADJUDICATE',
     resource: 'Claim: CLM-2026-884102 Approved ($1100.00)',
     ipAddress: '10.0.4.19',
-    complianceLevel: 'HIPAA_STANDARD'
+    eventSeverity: 'ROUTINE_ACCESS'
   },
   {
     id: 'log_9003',
@@ -396,6 +396,6 @@ export const sampleAuditLogs: AuditLog[] = [
     action: 'SECURITY_MFA_ENFORCE',
     resource: 'Enforced MFA on Organization: TechCorp Global',
     ipAddress: '172.16.0.8',
-    complianceLevel: 'CRITICAL_ACCESS'
+    eventSeverity: 'CRITICAL_ACCESS'
   }
 ];

@@ -38,7 +38,7 @@ describe('mapOrganizationToTenantOrg', () => {
 const baseLog: AuditLogRow = {
   id: 'log-1', organization_id: 'org-1', actor_id: 'user-1',
   action: 'EHR_RECORD_VIEW', resource_type: 'Patient', resource_id: 'pat-1',
-  details: null, ip_address: '10.0.0.1', timestamp: '2026-07-24T18:00:00Z',
+  details: null, ip_address: '10.0.0.1', created_at: '2026-07-24T18:00:00Z',
 };
 
 describe('mapAuditLog', () => {
@@ -52,18 +52,31 @@ describe('mapAuditLog', () => {
     expect(log.userName).toBe('Dr. J');
     expect(log.role).toBe('provider');
     expect(log.resource).toBe('Patient: pat-1');
-    expect(log.complianceLevel).toBe('HIPAA_STANDARD');
+    expect(log.timestamp).toBe('2026-07-24T18:00:00Z');
+    expect(log.eventSeverity).toBe('ROUTINE_ACCESS');
   });
 
   it('flags SECURITY_ actions as CRITICAL_ACCESS', () => {
     const log = mapAuditLog({ ...baseLog, action: 'SECURITY_MFA_ENFORCE' });
-    expect(log.complianceLevel).toBe('CRITICAL_ACCESS');
+    expect(log.eventSeverity).toBe('CRITICAL_ACCESS');
   });
 
   it('treats actor-less entries as SYSTEM_EVENT', () => {
     const log = mapAuditLog({ ...baseLog, actor_id: null });
-    expect(log.complianceLevel).toBe('SYSTEM_EVENT');
+    expect(log.eventSeverity).toBe('SYSTEM_EVENT');
     expect(log.userName).toBe('System');
+  });
+
+  it('falls back to just the resource_type when resource_id is absent', () => {
+    const log = mapAuditLog({ ...baseLog, resource_id: null });
+    expect(log.resource).toBe('Patient');
+  });
+
+  it('degrades gracefully with no actor profile and no ip address recorded', () => {
+    const log = mapAuditLog({ ...baseLog, actor_id: null, ip_address: null });
+    expect(log.userId).toBe('system');
+    expect(log.userName).toBe('System');
+    expect(log.ipAddress).toBe('0.0.0.0');
   });
 });
 

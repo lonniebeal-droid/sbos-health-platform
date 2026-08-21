@@ -377,6 +377,10 @@ export interface MedicalRecordRow {
   updated_at: string;
 }
 
+// Internal application audit logging only — this is not a certified
+// compliance program, SOC2 evidence, or an immutable/tamper-proof log; it's
+// a plain Postgres table an app process writes to. organization_id/actor_id
+// are nullable to allow system-generated events with no acting user.
 export interface AuditLogRow {
   id: string;
   organization_id: string | null;
@@ -386,14 +390,14 @@ export interface AuditLogRow {
   resource_id: string | null;
   details: string | null;
   ip_address: string | null;
-  timestamp: string;
+  created_at: string;
 }
 
 // Insert payloads: id/created_at/defaults are DB-generated, so omit them.
 export type OrganizationInsert = Omit<OrganizationRow, 'id' | 'created_at' | 'updated_at'>;
 export type AppointmentInsert = Omit<AppointmentRow, 'id' | 'created_at' | 'updated_at'>;
 export type PriorAuthorizationInsert = Omit<PriorAuthorizationRow, 'id' | 'created_at' | 'updated_at'>;
-export type AuditLogInsert = Omit<AuditLogRow, 'id' | 'timestamp'>;
+export type AuditLogInsert = Omit<AuditLogRow, 'id' | 'created_at'>;
 
 /** Table-name → row-type registry (handy for generic helpers/tests). `providers` is
  * intentionally absent — there is no live providers table (see ProviderIdentityRow). */

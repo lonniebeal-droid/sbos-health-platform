@@ -249,6 +249,12 @@ export interface EmployerGroup {
   status: 'active' | 'pending_renewal';
 }
 
+/**
+ * Internal application audit logging only. This is not a certified
+ * compliance program, SOC2/HIPAA evidence, or an immutable/tamper-proof
+ * log — `eventSeverity` is a plain internal categorization for display
+ * filtering, not a compliance classification.
+ */
 export interface AuditLog {
   id: string;
   timestamp: string;
@@ -258,7 +264,7 @@ export interface AuditLog {
   action: string;
   resource: string;
   ipAddress: string;
-  complianceLevel: 'HIPAA_STANDARD' | 'CRITICAL_ACCESS' | 'SYSTEM_EVENT';
+  eventSeverity: 'ROUTINE_ACCESS' | 'CRITICAL_ACCESS' | 'SYSTEM_EVENT';
 }
 
 export interface ChatMessage {

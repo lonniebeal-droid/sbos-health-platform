@@ -405,6 +405,64 @@ describe('repositories', () => {
     expect(seenOps.some((op) => op[0] === 'eq' && op[1] === 'organization_id')).toBe(false);
   });
 
+  it('auditLogs.list orders by created_at and preserves nullable actor/org fields for system events', async () => {
+    let seenTable = '';
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((table, ops) => {
+      seenTable = table; seenOps = ops;
+      return {
+        data: [{ id: 'log-1', organization_id: null, actor_id: null, action: 'SYSTEM_STARTUP', resource_type: 'System' }],
+        error: null,
+      };
+    }));
+    const rows = await repos.auditLogs.list();
+    expect(seenTable).toBe('audit_logs');
+    expect(seenOps).toContainEqual(['order', 'created_at', { ascending: false }]);
+    expect(rows[0].actor_id).toBeNull();
+  });
+
+  it('auditLogs.list returns an empty array (not an error) when nothing has been logged yet', async () => {
+    const repos = createRepositories(fakeClient(() => ({ data: [], error: null })));
+    expect(await repos.auditLogs.list()).toEqual([]);
+  });
+
+  it('auditLogs.record inserts a new event with the given actor/org/action/resource fields', async () => {
+    let seenTable = '';
+    let seenOps: unknown[][] = [];
+    const payload = {
+      organization_id: 'org-1', actor_id: 'user-1', action: 'EHR_RECORD_VIEW',
+      resource_type: 'Patient', resource_id: 'pat-1', details: null, ip_address: '10.0.0.1',
+    };
+    const repos = createRepositories(fakeClient((table, ops) => {
+      seenTable = table; seenOps = ops;
+      return { data: { id: 'log-1', created_at: '2026-08-21T00:00:00Z', ...payload }, error: null };
+    }));
+    const row = await repos.auditLogs.record(payload);
+    expect(seenTable).toBe('audit_logs');
+    expect(seenOps).toContainEqual(['insert', payload]);
+    expect(row.id).toBe('log-1');
+  });
+
+  it('auditLogs repository surfaces a Postgrest FK-violation error (e.g. from an invalid actor_id) instead of silently succeeding', async () => {
+    const repos = createRepositories(fakeClient(() => ({
+      data: null,
+      error: { message: 'insert or update on table "audit_logs" violates foreign key constraint "audit_logs_actor_id_fkey"' },
+    })));
+    await expect(repos.auditLogs.list()).rejects.toThrow(/foreign key constraint/);
+  });
+
+  // Same caveat as every other domain above: scoping depends entirely on
+  // RLS, which is disabled on the live project today.
+  it('auditLogs.list does not itself filter by organization_id', async () => {
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((_t, ops) => {
+      seenOps = ops;
+      return { data: [], error: null };
+    }));
+    await repos.auditLogs.list();
+    expect(seenOps.some((op) => op[0] === 'eq' && op[1] === 'organization_id')).toBe(false);
+  });
+
   it('priorAuths.create inserts a new prior authorization row', async () => {
     let seenTable = '';
     let seenOps: unknown[][] = [];
