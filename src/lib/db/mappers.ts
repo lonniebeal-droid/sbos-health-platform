@@ -329,20 +329,22 @@ export function mapOrganizationToTenantOrg(row: OrganizationRow): TenantOrg {
 }
 
 /**
- * AuditLogRow -> AuditLog domain. `userName`/`role` come from the actor profile
- * (pass it when available); falls back to the actor id / 'admin' otherwise.
- * complianceLevel is derived from the action, not stored — documented as such.
+ * AuditLogRow -> AuditLog domain. Internal application audit logging only —
+ * not a certified compliance program or SOC2/HIPAA evidence. `userName`/
+ * `role` come from the actor profile (pass it when available); falls back to
+ * the actor id / 'admin' otherwise. `eventSeverity` is derived from the
+ * action, not stored — a plain internal categorization, documented as such.
  */
 export function mapAuditLog(row: AuditLogRow, actor?: UserRow): AuditLog {
-  const compliance: AuditLog['complianceLevel'] = row.action.startsWith('SECURITY_')
+  const severity: AuditLog['eventSeverity'] = row.action.startsWith('SECURITY_')
     ? 'CRITICAL_ACCESS'
     : row.actor_id
-      ? 'HIPAA_STANDARD'
+      ? 'ROUTINE_ACCESS'
       : 'SYSTEM_EVENT';
 
   return {
     id: row.id,
-    timestamp: row.timestamp,
+    timestamp: row.created_at,
     userId: row.actor_id ?? 'system',
     userName: actor?.full_name ?? row.actor_id ?? 'System',
     role: (actor?.role as Role) ?? 'admin',
@@ -351,6 +353,6 @@ export function mapAuditLog(row: AuditLogRow, actor?: UserRow): AuditLog {
       ? `${row.resource_type}: ${row.resource_id}`
       : row.resource_type,
     ipAddress: row.ip_address ?? '0.0.0.0',
-    complianceLevel: compliance,
+    eventSeverity: severity,
   };
 }

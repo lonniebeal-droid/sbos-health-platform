@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Database, Server, FileText, CheckCircle2, Lock, Building2, FlaskConical } from 'lucide-react';
+import { Shield, Database, Server, FileText, Lock, Building2, FlaskConical } from 'lucide-react';
 import { TenantManagement } from './TenantManagement';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories, mapAuditLog } from '../../lib/repositories';
@@ -37,7 +37,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       action: 'EHR_RECORD_ACCESS',
       resource: 'Patient: pat_001',
       ipAddress: '192.168.1.45',
-      complianceLevel: 'HIPAA_STANDARD',
+      eventSeverity: 'ROUTINE_ACCESS',
     },
     {
       id: 'log_02',
@@ -48,7 +48,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       action: 'EDI_837_ADJUDICATION',
       resource: 'Claim: CLM-99201',
       ipAddress: 'internal-pod-02',
-      complianceLevel: 'SYSTEM_EVENT',
+      eventSeverity: 'SYSTEM_EVENT',
     },
     {
       id: 'log_03',
@@ -59,7 +59,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       action: 'TELEHEALTH_SESSION_STARTED',
       resource: 'Appointment: encrypted WebRTC video stream',
       ipAddress: '73.189.201.12',
-      complianceLevel: 'CRITICAL_ACCESS',
+      eventSeverity: 'CRITICAL_ACCESS',
     },
     {
       id: 'log_04',
@@ -70,7 +70,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       action: 'BIRP_NOTE_GENERATION',
       resource: 'Clinical note coding suggestion CPT 90837 / ICD F41.1',
       ipAddress: 'ai-engine-cloud',
-      complianceLevel: 'SYSTEM_EVENT',
+      eventSeverity: 'SYSTEM_EVENT',
     },
   ];
 
@@ -99,7 +99,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <Shield className="w-5 h-5 text-teal-400" />
-            <span className="text-xs font-mono font-bold text-teal-300 uppercase">SBOS System Security & Governance</span>
+            <span className="text-xs font-mono font-bold text-teal-300 uppercase">SBOS System Audit Log</span>
             <span
               title={usingLiveAuditLogs ? 'Loaded from Supabase audit_logs' : 'Demo audit-log fallback'}
               className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -111,24 +111,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               {usingLiveAuditLogs ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
               {usingLiveAuditLogs ? 'Live audit data' : 'Demo audit data'}
             </span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Enterprise Compliance & Audit Console</h1>
-          <p className="text-xs text-slate-300">
-            {loading
-              ? 'Loading audit ledger...'
-              : error
-                ? `Could not load live audit logs (${error}); showing demo data.`
-                : 'Audit-log visibility, role-based access controls (RBAC), and security telemetry for release review.'}
-          </p>
-        </div>
-
-        <div className="flex gap-3 text-xs">
-          <div className="px-4 py-2 rounded-2xl bg-slate-900/80 border border-slate-700 text-right">
-            <span className="text-slate-400 text-[10px] uppercase font-bold block">HIPAA Readiness Status</span>
-            <span className="font-mono font-extrabold text-teal-400 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Controls In Progress
+            <span
+              title="This is an internal application log, not a certified compliance program, SOC2/HIPAA evidence, or an immutable/tamper-proof record."
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-200 border border-slate-400/30"
+            >
+              Internal application audit logging
             </span>
           </div>
+          <h1 className="text-2xl font-bold tracking-tight">System Access & Audit Log</h1>
+          <p className="text-xs text-slate-300">
+            {loading
+              ? 'Loading audit log...'
+              : error
+                ? `Could not load live audit logs (${error}); showing demo data.`
+                : 'Internal record of actions taken in this application. Not a certified compliance program or SOC2/HIPAA audit evidence.'}
+          </p>
         </div>
       </div>
 
@@ -153,7 +150,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
           }`}
         >
-          <FileText className="w-4 h-4" /> HIPAA Audit Trails
+          <FileText className="w-4 h-4" /> Audit Log
         </button>
 
         <button
@@ -184,9 +181,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
               <Lock className="w-4 h-4 text-teal-500" />
-              Immutable System Access & Access Audit Ledger
+              System Access & Audit Log
             </h3>
-            <span className="text-xs font-mono text-slate-400">SOC2 readiness not verified</span>
+            <span className="text-xs font-mono text-slate-400">Internal application log — not SOC2/HIPAA-certified evidence</span>
           </div>
 
           <div className="overflow-x-auto">
@@ -211,11 +208,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <td className="py-3 text-slate-400">{log.ipAddress}</td>
                     <td className="py-3">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-sans ${
-                        log.complianceLevel === 'CRITICAL_ACCESS'
+                        log.eventSeverity === 'CRITICAL_ACCESS'
                           ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
                           : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                       }`}>
-                        {log.complianceLevel}
+                        {log.eventSeverity}
                       </span>
                     </td>
                   </tr>

@@ -354,10 +354,12 @@ export function createRepositories(client: SupabaseClient) {
       },
     },
 
+    // Internal application audit logging only — not a certified compliance
+    // program or an immutable log.
     auditLogs: {
       async list(): Promise<AuditLogRow[]> {
         return unwrap<AuditLogRow[]>(
-          await client.from('audit_logs').select('*').order('timestamp', { ascending: false }),
+          await client.from('audit_logs').select('*').order('created_at', { ascending: false }),
         );
       },
       async record(entry: AuditLogInsert): Promise<AuditLogRow> {
