@@ -55,7 +55,9 @@ export interface ClaimClassification {
   reason: string;
 }
 
-const OPEN_STATUSES: ClaimStatus[] = ['submitted', 'in_review', 'adjudicated'];
+// 'draft'/'ready' are live-schema pre-submission statuses; 'adjudicated' is kept for the
+// offline demo dataset only (see the ClaimStatus comment in types.ts).
+const OPEN_STATUSES: ClaimStatus[] = ['draft', 'ready', 'submitted', 'in_review', 'adjudicated'];
 
 /** Classifies an open claim for automated routing. */
 export function classifyClaim(claim: Pick<Claim, 'aiRiskScore' | 'totalBilled' | 'status'>): ClaimClassification {

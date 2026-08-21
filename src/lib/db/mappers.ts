@@ -9,7 +9,8 @@
 
 import type { TenantOrg } from '../organizationContext';
 import type { AuditLog, Role, Patient, Prescription, Appointment, Claim, PriorAuth, MedicalRecord, BenefitsPlan, Provider } from '../../types';
-import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, LabResultRow } from './database.types';
+import type { OrganizationRow, AuditLogRow, UserRow, DbOrgType, PatientWithUser, PrescriptionWithProvider, DbRxStatus, AppointmentWithNames, ClaimWithDetails, PriorAuthorizationWithNames, MedicalRecordRow, BenefitsPlanRow, ProviderWithUser, LabResultRow } from './database.types';
+import { sumPayments, calculatePatientResponsibilityCents, parseAdjudicationMethod, centsToDollars } from '../claimsBalance';
 
 /** BenefitsPlanRow -> the UI BenefitsPlan domain type. */
 export function mapBenefitsPlan(row: BenefitsPlanRow): BenefitsPlan {
@@ -98,31 +99,51 @@ export function mapPriorAuth(row: PriorAuthorizationWithNames): PriorAuth {
   };
 }
 
-/** ClaimWithNames -> the UI Claim domain type. */
-export function mapClaim(row: ClaimWithNames): Claim {
+/**
+ * ClaimWithDetails -> the UI Claim domain type.
+ *
+ * The live "SBOS HealthOS" claims table only carries the charge total and
+ * workflow timestamps — everything else (payer/patient amounts, denial
+ * detail, diagnosis/procedure codes, provider identity) is derived from the
+ * joined child tables and the linked encounter. Two UI fields have no
+ * backing data yet and are left as honest empty defaults rather than
+ * fabricated: `providerNpi` (no NPI column exists anywhere in the live
+ * schema) and `aiRiskScore`/`aiRiskFlags`/`plainEnglishExplanation` (fraud
+ * risk is computed on demand by the /api/ai/fraud-analysis endpoint, not
+ * persisted, so there is nothing to read back for the queue view).
+ */
+export function mapClaim(row: ClaimWithDetails): Claim {
+  const payments = row.claim_payments ?? [];
+  const adjustments = row.claim_adjustments ?? [];
+  const denials = row.claim_denials ?? [];
+  const events = row.claim_status_events ?? [];
+  const diagnosisCodes = row.encounter?.encounter_diagnoses ?? [];
+
+  const claimLevelDenial = denials
+    .filter((d) => d.claim_line_id === null)
+    .sort((a, b) => (a.denied_at < b.denied_at ? 1 : -1))[0] ?? null;
+
   return {
     id: row.id,
     claimNumber: row.claim_number,
-    patientId: row.patient_id ?? '',
-    // Prefer the denormalized identity carried on the claim (visible to the
-    // payer); fall back to the joined records (visible to same-org staff).
-    patientName: row.patient_name ?? row.patient?.user?.full_name ?? 'Unknown Patient',
-    providerName: row.provider_name ?? row.provider?.user?.full_name ?? 'Unknown Provider',
-    providerNpi: row.provider_npi ?? row.provider?.npi ?? '',
-    serviceDate: row.service_date,
-    submittedDate: (row.created_at ?? '').slice(0, 10),
-    diagnosisCodes: row.icd10_codes ?? [],
-    procedureCodes: row.cpt_codes ?? [],
-    totalBilled: row.total_billed,
-    planCoveredAmount: row.approved_amount,
-    patientResponsibility: row.patient_copay,
+    patientId: row.patient_id,
+    patientName: row.patient?.full_name ?? 'Unknown Patient',
+    providerName: row.encounter?.provider?.full_name ?? 'Unknown Provider',
+    providerNpi: '',
+    serviceDate: row.encounter?.encounter_date ?? '',
+    submittedDate: (row.submitted_at ?? row.created_at ?? '').slice(0, 10),
+    diagnosisCodes: diagnosisCodes.map((d) => d.diagnosis?.code).filter((c): c is string => !!c),
+    procedureCodes: (row.claim_lines ?? []).map((l) => l.procedure_code),
+    totalBilled: centsToDollars(row.total_charge_cents),
+    planCoveredAmount: centsToDollars(sumPayments(payments, 'payer')),
+    patientResponsibility: centsToDollars(calculatePatientResponsibilityCents(row.total_charge_cents, payments, adjustments)),
     status: row.status,
-    aiRiskScore: row.ai_risk_score,
-    aiRiskFlags: row.ai_risk_flags ?? [],
-    plainEnglishExplanation: row.plain_english_explanation ?? '',
-    denialCode: (row.denial_code as Claim['denialCode']) ?? null,
-    denialReason: row.denial_reason ?? null,
-    adjudicationMethod: row.adjudication_method ?? undefined,
+    aiRiskScore: 0,
+    aiRiskFlags: [],
+    plainEnglishExplanation: '',
+    denialCode: (claimLevelDenial?.denial_code as Claim['denialCode']) ?? (row.denial_reason ? 'OTHER' : null),
+    denialReason: claimLevelDenial?.denial_reason ?? row.denial_reason ?? null,
+    adjudicationMethod: parseAdjudicationMethod(events, row.status),
   };
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mapOrganizationToTenantOrg, mapAuditLog, mapPatient, mapAppointment, formatTime24to12, mapClaim, mapPriorAuth, mapMedicalRecord, mapLabResult, mapBenefitsPlan, mapPrescription } from '../lib/db/mappers';
-import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithNames, PriorAuthorizationWithNames, MedicalRecordRow, LabResultRow, BenefitsPlanRow, PrescriptionWithProvider } from '../lib/db/database.types';
+import type { OrganizationRow, AuditLogRow, UserRow, PatientWithUser, AppointmentWithNames, ClaimWithDetails, ClaimPaymentRow, ClaimAdjustmentRow, ClaimDenialRow, ClaimStatusEventRow, PriorAuthorizationWithNames, MedicalRecordRow, LabResultRow, BenefitsPlanRow, PrescriptionWithProvider } from '../lib/db/database.types';
 
 const baseOrg: OrganizationRow = {
   id: 'org-1', name: 'Bay Area Health System', type: 'health_system',
@@ -163,64 +163,110 @@ describe('mapPrescription', () => {
 });
 
 describe('mapClaim', () => {
-  const row: ClaimWithNames = {
-    id: 'clm-1', claim_number: 'CLM-2026-884102', patient_id: 'pat-1', provider_id: 'prov-1',
-    payer_organization_id: 'org-2', organization_id: 'org-1', service_date: '2026-07-10',
-    total_billed: 1250, approved_amount: 1100, patient_copay: 30, status: 'paid',
-    icd10_codes: ['R07.9', 'I10'], cpt_codes: ['71250', '99214'], ai_risk_score: 4, ai_risk_flags: [],
-    plain_english_explanation: 'Covered at 90%.',
-    patient_name: null, provider_name: null, provider_npi: null,
-    denial_code: null, denial_reason: null, adjudication_method: null,
-    created_at: '2026-07-11T00:00:00Z',
-    patient: { user: { full_name: 'Sarah Jenkins' } },
-    provider: { npi: '1982736410', user: { full_name: 'Dr. James Wilson' } },
+  const payerPayment: ClaimPaymentRow = {
+    id: 'pay-1', organization_id: 'org-1', claim_id: 'clm-1', claim_line_id: null,
+    payment_source: 'payer', payment_method: 'manual_adjudication', amount_cents: 110000,
+    reference_number: null, paid_at: '2026-07-12T00:00:00Z', posted_by_user_id: null,
+    created_at: '2026-07-12T00:00:00Z', updated_at: '2026-07-12T00:00:00Z',
+  };
+  const paidEvent: ClaimStatusEventRow = {
+    id: 'evt-1', organization_id: 'org-1', claim_id: 'clm-1', from_status: 'in_review', to_status: 'paid',
+    reason: '[manual] approved and paid $1100.00', changed_by_user_id: null, created_at: '2026-07-12T00:00:00Z',
   };
 
-  it('maps names, NPI, amounts, codes, and explanation via join', () => {
+  const row: ClaimWithDetails = {
+    id: 'clm-1', organization_id: 'org-1', patient_id: 'pat-1', encounter_id: 'enc-1',
+    insurance_info_id: 'ins-1', claim_number: 'CLM-2026-884102', status: 'paid',
+    total_charge_cents: 125000, submitted_at: '2026-07-11T00:00:00Z', reviewed_at: '2026-07-12T00:00:00Z',
+    paid_at: '2026-07-12T00:00:00Z', denied_at: null, denial_reason: null, created_by_user_id: null,
+    created_at: '2026-07-11T00:00:00Z', updated_at: '2026-07-12T00:00:00Z',
+    patient: { full_name: 'Sarah Jenkins' },
+    encounter: {
+      encounter_date: '2026-07-10',
+      provider: { full_name: 'Dr. James Wilson' },
+      encounter_diagnoses: [{ diagnosis: { code: 'R07.9' } }, { diagnosis: { code: 'I10' } }],
+    },
+    claim_lines: [
+      { id: 'line-1', organization_id: 'org-1', claim_id: 'clm-1', encounter_procedure_id: null, procedure_code: '71250', procedure_description: 'CT chest', units: 1, charge_cents: 90000, line_total_cents: 90000, status: 'approved', denial_reason: null, created_at: '2026-07-11T00:00:00Z', updated_at: '2026-07-11T00:00:00Z' },
+      { id: 'line-2', organization_id: 'org-1', claim_id: 'clm-1', encounter_procedure_id: null, procedure_code: '99214', procedure_description: 'Office visit', units: 1, charge_cents: 35000, line_total_cents: 35000, status: 'approved', denial_reason: null, created_at: '2026-07-11T00:00:00Z', updated_at: '2026-07-11T00:00:00Z' },
+    ],
+    claim_payments: [payerPayment],
+    claim_adjustments: [],
+    claim_denials: [],
+    claim_status_events: [paidEvent],
+  };
+
+  it('maps names, amounts, codes, and derived balances', () => {
     const c = mapClaim(row);
     expect(c.patientName).toBe('Sarah Jenkins');
     expect(c.providerName).toBe('Dr. James Wilson');
-    expect(c.providerNpi).toBe('1982736410');
+    expect(c.providerNpi).toBe('');
+    expect(c.totalBilled).toBe(1250);
     expect(c.planCoveredAmount).toBe(1100);
-    expect(c.patientResponsibility).toBe(30);
+    expect(c.patientResponsibility).toBe(150);
     expect(c.diagnosisCodes).toEqual(['R07.9', 'I10']);
+    expect(c.procedureCodes).toEqual(['71250', '99214']);
     expect(c.submittedDate).toBe('2026-07-11');
-    expect(c.plainEnglishExplanation).toBe('Covered at 90%.');
+    expect(c.adjudicationMethod).toBe('manual');
   });
 
-  it('degrades gracefully when joins are missing', () => {
-    const c = mapClaim({ ...row, patient: null, provider: null, plain_english_explanation: null });
+  it('degrades gracefully when the encounter/patient joins are missing', () => {
+    const c = mapClaim({ ...row, patient: null, encounter: null });
     expect(c.patientName).toBe('Unknown Patient');
+    expect(c.providerName).toBe('Unknown Provider');
     expect(c.providerNpi).toBe('');
     expect(c.plainEnglishExplanation).toBe('');
+    expect(c.diagnosisCodes).toEqual([]);
+    expect(c.serviceDate).toBe('');
   });
 
-  it('prefers denormalized names (payer view, no cross-org join)', () => {
+  it('maps a claim-level denial from claim_denials and leaves line-level denials out of the claim summary', () => {
+    const denial: ClaimDenialRow = {
+      id: 'den-1', organization_id: 'org-1', claim_id: 'clm-1', claim_line_id: null,
+      denial_code: 'MISSING_DOCS', denial_reason: 'Chart notes not received', denied_at: '2026-07-12T00:00:00Z',
+      created_by_user_id: null, created_at: '2026-07-12T00:00:00Z', updated_at: '2026-07-12T00:00:00Z',
+    };
+    const lineDenial: ClaimDenialRow = { ...denial, id: 'den-2', claim_line_id: 'line-1', denial_code: 'CODING_ERROR' };
     const c = mapClaim({
-      ...row, patient: null, provider: null,
-      patient_name: 'Sarah Jenkins', provider_name: 'Dr. James Wilson', provider_npi: '1982736410',
-    });
-    expect(c.patientName).toBe('Sarah Jenkins');
-    expect(c.providerName).toBe('Dr. James Wilson');
-    expect(c.providerNpi).toBe('1982736410');
-  });
-
-  it('maps denial code/reason and adjudication method when present', () => {
-    const c = mapClaim({
-      ...row,
-      status: 'denied',
-      denial_code: 'MISSING_DOCS',
-      denial_reason: 'Chart notes not received',
-      adjudication_method: 'manual',
+      ...row, status: 'denied', denial_reason: 'Chart notes not received',
+      claim_denials: [lineDenial, denial],
+      claim_status_events: [{ ...paidEvent, to_status: 'denied', reason: '[manual] denied — MISSING_DOCS: Chart notes not received' }],
     });
     expect(c.denialCode).toBe('MISSING_DOCS');
     expect(c.denialReason).toBe('Chart notes not received');
     expect(c.adjudicationMethod).toBe('manual');
   });
 
-  it('leaves adjudicationMethod undefined (not null) when the row has none', () => {
-    const c = mapClaim(row);
+  it('falls back to OTHER when claims.denial_reason is set but no structured claim_denials row exists', () => {
+    const c = mapClaim({ ...row, status: 'denied', denial_reason: 'Denied by payer', claim_denials: [] });
+    expect(c.denialCode).toBe('OTHER');
+    expect(c.denialReason).toBe('Denied by payer');
+  });
+
+  it('leaves adjudicationMethod undefined when no [automated]/[manual] status event exists', () => {
+    const c = mapClaim({ ...row, claim_status_events: [] });
     expect(c.adjudicationMethod).toBeUndefined();
+  });
+
+  it('computes an auto-adjudicated claim from an [automated] status event', () => {
+    const c = mapClaim({
+      ...row,
+      claim_status_events: [{ ...paidEvent, reason: '[automated] approved and paid $1100.00' }],
+    });
+    expect(c.adjudicationMethod).toBe('automated');
+  });
+});
+
+describe('claimsBalance', () => {
+  it('never lets patientResponsibility go negative even if payments exceed the charge', async () => {
+    const { calculatePatientResponsibilityCents } = await import('../lib/claimsBalance');
+    const overpay: ClaimPaymentRow = {
+      id: 'pay-x', organization_id: 'org-1', claim_id: 'clm-1', claim_line_id: null,
+      payment_source: 'payer', payment_method: 'manual_adjudication', amount_cents: 999999,
+      reference_number: null, paid_at: '2026-07-12T00:00:00Z', posted_by_user_id: null,
+      created_at: '2026-07-12T00:00:00Z', updated_at: '2026-07-12T00:00:00Z',
+    };
+    expect(calculatePatientResponsibilityCents(125000, [overpay], [])).toBe(0);
   });
 });
 

@@ -8,8 +8,12 @@
 
 // ----- Enums (mirror CREATE TYPE ... AS ENUM) -----
 export type DbUserRole = 'patient' | 'provider' | 'insurance' | 'employer' | 'admin';
-export type DbClaimStatus =
-  | 'submitted' | 'in_review' | 'adjudicated' | 'approved' | 'denied' | 'paid';
+// Claims live on the normalized schema of the "SBOS HealthOS" Supabase project
+// (ref yqlvcmydledbkudstqfo), applied there via migrations named
+// claims_foundation / claims_payments_foundation that are not present in this
+// repo's supabase/migrations/ history. This enum mirrors the live CHECK
+// constraint on public.claims.status exactly (confirmed via introspection).
+export type DbClaimStatus = 'draft' | 'ready' | 'submitted' | 'in_review' | 'paid' | 'denied' | 'void';
 export type DbAppointmentType = 'telehealth' | 'in_person' | 'urgent_care' | 'specialist';
 export type DbAppointmentStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 export type DbRxStatus = 'active' | 'refill_requested' | 'expired' | 'discontinued';
@@ -119,38 +123,118 @@ export interface AppointmentRow {
   created_at: string;
 }
 
+// ----- Claims domain (normalized — matches the live "SBOS HealthOS" schema) -----
+//
+// The claims table itself carries only the charge total and workflow
+// timestamps; money and outcome detail live in dedicated child tables. There
+// is no `providers` table and no NPI column anywhere in the live schema yet —
+// the rendering provider is `encounters.provider_user_id -> users`, and NPI
+// is simply not captured. Mappers must not invent an NPI value.
+export type DbPaymentSource = 'payer' | 'patient' | 'other';
+export type DbAdjustmentType = 'contractual' | 'write_off' | 'correction' | 'refund' | 'other';
+export type DbClaimLineStatus = 'pending' | 'approved' | 'denied';
+
 export interface ClaimRow {
   id: string;
+  organization_id: string;
+  patient_id: string;
+  encounter_id: string;
+  insurance_info_id: string;
   claim_number: string;
-  patient_id: string | null;
-  provider_id: string | null;
-  payer_organization_id: string | null;
-  organization_id: string | null;
-  service_date: string;
-  total_billed: number;
-  approved_amount: number;
-  patient_copay: number;
   status: DbClaimStatus;
-  icd10_codes: string[];
-  cpt_codes: string[];
-  ai_risk_score: number;
-  ai_risk_flags: string[];
-  plain_english_explanation: string | null;
-  // Denormalized display identity (see 20260725020000_claims_visibility.sql).
-  patient_name: string | null;
-  provider_name: string | null;
-  provider_npi: string | null;
-  // See 20260725050000_claims_denial_reason.sql.
-  denial_code: string | null;
+  total_charge_cents: number;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  paid_at: string | null;
+  denied_at: string | null;
   denial_reason: string | null;
-  adjudication_method: 'automated' | 'manual' | null;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClaimLineRow {
+  id: string;
+  organization_id: string;
+  claim_id: string;
+  encounter_procedure_id: string | null;
+  procedure_code: string;
+  procedure_description: string;
+  units: number;
+  charge_cents: number;
+  line_total_cents: number;
+  status: DbClaimLineStatus;
+  denial_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClaimStatusEventRow {
+  id: string;
+  organization_id: string;
+  claim_id: string;
+  from_status: DbClaimStatus | null;
+  to_status: DbClaimStatus;
+  reason: string | null;
+  changed_by_user_id: string | null;
   created_at: string;
 }
 
-/** A claim with patient + provider display names and provider NPI. */
-export interface ClaimWithNames extends ClaimRow {
-  patient: { user: { full_name: string } | null } | null;
-  provider: { npi: string; user: { full_name: string } | null } | null;
+export interface ClaimPaymentRow {
+  id: string;
+  organization_id: string;
+  claim_id: string;
+  claim_line_id: string | null;
+  payment_source: DbPaymentSource;
+  payment_method: string;
+  amount_cents: number;
+  reference_number: string | null;
+  paid_at: string;
+  posted_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClaimAdjustmentRow {
+  id: string;
+  organization_id: string;
+  claim_id: string;
+  claim_line_id: string | null;
+  adjustment_type: DbAdjustmentType;
+  amount_cents: number;
+  reason: string | null;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A denial reason record. `claim_line_id = null` means a claim-level denial; set means line-level. */
+export interface ClaimDenialRow {
+  id: string;
+  organization_id: string;
+  claim_id: string;
+  claim_line_id: string | null;
+  denial_code: string | null;
+  denial_reason: string;
+  denied_at: string;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A claim joined with everything the UI needs to compute names, codes, and balances. */
+export interface ClaimWithDetails extends ClaimRow {
+  patient: { full_name: string } | null;
+  encounter: {
+    encounter_date: string;
+    provider: { full_name: string } | null;
+    encounter_diagnoses: { diagnosis: { code: string } | null }[];
+  } | null;
+  claim_lines: ClaimLineRow[];
+  claim_payments: ClaimPaymentRow[];
+  claim_adjustments: ClaimAdjustmentRow[];
+  claim_denials: ClaimDenialRow[];
+  claim_status_events: ClaimStatusEventRow[];
 }
 
 /** A prior authorization with patient + provider display names. */
@@ -265,6 +349,11 @@ export interface Database {
   providers: ProviderRow;
   appointments: AppointmentRow;
   claims: ClaimRow;
+  claim_lines: ClaimLineRow;
+  claim_status_events: ClaimStatusEventRow;
+  claim_payments: ClaimPaymentRow;
+  claim_adjustments: ClaimAdjustmentRow;
+  claim_denials: ClaimDenialRow;
   prescriptions: PrescriptionRow;
   prior_authorizations: PriorAuthorizationRow;
   lab_results: LabResultRow;

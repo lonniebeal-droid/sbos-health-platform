@@ -37,7 +37,12 @@ export interface TenantOrganization {
   usersCount: number;
 }
 
-export type ClaimStatus = 'submitted' | 'in_review' | 'adjudicated' | 'approved' | 'denied' | 'paid';
+// 'draft' | 'ready' | 'submitted' | 'in_review' | 'paid' | 'denied' | 'void' mirror the
+// live claims.status CHECK constraint (project "SBOS HealthOS"). 'adjudicated' | 'approved'
+// are additionally kept for the offline demo dataset (src/data/mockData.ts), which predates
+// the live schema and is never written back to Supabase.
+export type ClaimStatus =
+  | 'draft' | 'ready' | 'submitted' | 'in_review' | 'adjudicated' | 'approved' | 'paid' | 'denied' | 'void';
 
 export interface UserProfile {
   id: string;
