@@ -23,12 +23,12 @@ Priority: **P0** = blocks correctness/security · **P1** = blocks real features 
 
 | # | Item | Detail |
 |---|---|---|
-| 8 | **RBAC never enforced** | `permissions.ts` is correct and unit-tested but not yet called by any route or UI guard. Also not yet enforced in RLS (tenant isolation is; per-role writes are not). |
+| 8 | **UI role guards are not enforced** | `permissions.ts` is correct and unit-tested but is not called by routes or UI guards. Database RLS now enforces tenant isolation and per-role writes; the portal persona switcher can still expose misleading UI to a role that RLS will reject. |
 | 9 | **Components still import mocks directly** | ~18 of 21 components still import `data/mock*`. Migrated so far: PatientManagement, PrescriptionsView, and PatientDashboard appointments. Continue one domain at a time via the repository/`useAsync` pattern. |
 | 10 | **Inconsistent org/tenant sources** | `server.ts /api/tenants`, `mockTenants.ts`, and SQL seeds still disagree. `organizationContext.tsx` now loads real orgs from Supabase; consolidate the rest. |
-| 22 | **Schema thinner than UI domain types** | No columns/tables for: patient vitals, family members, primaryCarePhysician; provider rating/bio/avatar/affiliation; patient_messages, benefits_plans, medical_records. Add these before those views can use real data. |
-| 23 | **Claims RLS is payer-only** | `claims_payer_tenant` isolates by `payer_organization_id`; provider-side visibility not yet modeled. |
-| 24 | **No seed for auth users** | `supabase/seed.sql` absent; no test users to sign in with locally. Add a seed that creates auth users + profiles. |
+| 22 | **Schema thinner than UI domain types** | No columns/tables for: patient vitals, family members, primaryCarePhysician; provider rating/bio/avatar/affiliation; patient_messages. ~~benefits_plans, medical_records~~ — **partially resolved 2026-08-21**: `medical_records` table exists live; benefits fields live on `insurance_info` (no separate `benefits_plans` table). patient_messages still not modeled. |
+| ~~23~~ | ~~**Claims RLS is payer-only**~~ **Resolved 2026-08-21** — the live schema never had a `claims_payer_tenant`/`payer_organization_id` design (that was an unrelated, never-applied migration lineage, since removed). Live claims RLS is tenant-isolated by `organization_id` (the servicing org) via `20260821183723_per_role_write_rbac.sql`; cross-org payer visibility is not modeled and is a real, separate future gap, not "payer-only" as previously stated. |
+| ~~24~~ | ~~**No seed for auth users**~~ **Resolved 2026-08-21** — `supabase/seed.sql` exists, creates 4 auth users + profiles + a full domain-data fixture matching the live schema. |
 | 11 | **`deploy.sh` doesn't migrate** | Step 3 only echoes success; wire a real migration step. |
 | 12 | **Terraform vs Supabase mismatch** | IaC provisions GCP Cloud SQL while docs say Supabase. Decide the target. |
 | 13 | **GraphQL is fake** | `graphql` dep unused; `/api/graphql` ignores the query. Either implement or remove. |
@@ -48,14 +48,14 @@ Priority: **P0** = blocks correctness/security · **P1** = blocks real features 
 
 ## Resolved
 
-- 2026-07-25 — **Conflicting DB schemas** (was item 3). Enterprise schema chosen
-  canonical; redundant `20260724_init_sbos_schema.sql` removed.
-- 2026-07-25 — **Broken RLS** (was item 4). New migration
-  `20260725000000_auth_integration_rls.sql` removes the `OR TRUE` policies, links
-  `public.users` to `auth.users`, adds a uniform `organization_id` to the tables
-  that lacked one, and enables real tenant-isolation RLS on all tenant tables.
-  Validated on `supabase db reset`: anon reads the org directory, PHI tables deny
-  unauthenticated access.
+- 2026-08-21 — **Conflicting migration histories** (was item 3). The 18 hosted
+  migration statements were recovered under their exact ledger versions; the
+  incompatible local lineage is retained under `supabase/legacy-migrations/`
+  for audit only.
+- 2026-08-21 — **Fresh-replay RLS gap** (was item 4). The exact historical
+  migrations plus a forward grants migration now complete `supabase db reset`,
+  seed local fixtures, and pass all 18 checks in `npm run verify:rls`. The
+  grants migration is source-only pending normal hosted deployment review.
 - 2026-07-25 — **`@supabase/supabase-js` unused** (was item 7). Now wired via
   `src/lib/supabaseClient.ts` + a repository/service layer, consumed by
   `organizationContext.tsx`.

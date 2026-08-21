@@ -22,7 +22,7 @@ inventory.
 | `src/tests/claimsAutomation.test.ts` | 10 | frontend | claims automation + denial handling |
 | `src/tests/roleMapping.test.ts` | 4 | frontend | live role normalization |
 | `tests/server.test.ts` | 11 | backend | rate limiter, Gemini client memoization, JSON parser |
-| `scripts/verify-rls.sh` | 32 checks | database | local Supabase RLS/auth mapping, all local-table visibility paths, profile hardening, and audit-log immutability |
+| `scripts/verify-rls.sh` | 18 checks | database | local Supabase RLS/auth mapping, tenant isolation, per-role write RBAC, profile hardening, and audit-log immutability — against the real live schema |
 | **Total** | **121** | | |
 
 Verify counts: `for f in src/tests/*.test.ts tests/*.test.ts; do echo "$f"; grep -cE '\b(it|test)\(' "$f"; done`
@@ -45,19 +45,27 @@ Verify counts: `for f in src/tests/*.test.ts tests/*.test.ts; do echo "$f"; grep
    `/api/health` 200, `/api/docs/openapi.json` 200, `/` 200, removed route 404,
    malformed→400, missing→400, oversized→413.
 3. **Database isolation → local Supabase RLS verifier.** Requires `supabase start`
-   plus a local reset; currently runs 32 checks covering auth-to-org mapping,
-   rejected signup/profile escalation, tenant visibility for every local public
-   table, the intentional provider/payer claim visibility paths, and append-only
-   audit-log behavior against the seeded DB. The normalized `insurance_info`
-   schema is not present in the canonical local database, so its benefit columns
-   cannot be tested here.
+   plus a local reset against `supabase/migrations/` (which now actually
+   reconstructs the live schema, filename-for-filename matching Supabase's
+   own applied-migration ledger for the first 18 files — see
+   [DATABASE](DATABASE.md)); runs 18
+   checks covering auth-to-org mapping, rejected signup/profile escalation,
+   cross-tenant patient isolation, per-role write RBAC (e.g. an insurance-role
+   account cannot write clinical encounters), and append-only audit-log
+   behavior against the seeded DB. Verified locally on 2026-08-21:
+   `supabase db reset --local` completed for all 19 files, then
+   `npm run verify:rls` passed all 18 checks.
 4. **Typecheck as a gate** — `tsc --noEmit` in CI.
 
 ## Notable gaps / remaining tests
 
 - Component tests for the portals (needs jsdom + a component testing setup).
-- Cross-tenant mutation tests for every tenant table beyond patients and audit logs.
-- Hosted normalized-schema coverage, including `insurance_info` benefit columns.
+- The grants-alignment migration is source-only until it goes through the
+  normal hosted deployment review; local verification does not prove the
+  hosted privilege matrix has been tightened.
+- Cross-tenant mutation tests for every tenant table beyond patients and
+  encounters (the RBAC checks currently cover two representative tables, not
+  all 18 role-restricted ones).
 - AI endpoint handler tests (currently only helpers are unit-tested; full
   handler behavior is covered via the container smoke test).
 - Coverage instrumentation to quantify gaps.
