@@ -32,11 +32,15 @@ export function mapBenefitsPlan(row: BenefitsPlanRow): BenefitsPlan {
   };
 }
 
-/** MedicalRecordRow -> the UI MedicalRecord domain type. */
+/**
+ * MedicalRecordRow -> the UI MedicalRecord domain type. Internal medical
+ * record tracking only — there is no external EHR exchange, HIE, or
+ * HL7/FHIR ingestion integration anywhere in this app.
+ */
 export function mapMedicalRecord(row: MedicalRecordRow): MedicalRecord {
   return {
     id: row.id,
-    patientId: row.patient_id ?? '',
+    patientId: row.patient_id,
     date: row.record_date,
     type: row.type,
     title: row.title,

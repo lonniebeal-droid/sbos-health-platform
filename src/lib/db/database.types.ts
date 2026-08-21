@@ -336,10 +336,13 @@ export interface LabResultRow {
 export type DbMedicalRecordType = 'Lab Result' | 'Immunization' | 'Visit Summary' | 'Imaging';
 export type DbMedicalRecordStatus = 'normal' | 'abnormal' | 'pending';
 
+// Internal medical record tracking only — no external EHR exchange, HIE, or
+// FHIR ingestion integration anywhere in this app. `doctor` is free text
+// (no author FK exists on the live table), matching the applied migration.
 export interface MedicalRecordRow {
   id: string;
-  patient_id: string | null;
-  organization_id: string | null;
+  organization_id: string;
+  patient_id: string;
   record_date: string;
   type: DbMedicalRecordType;
   title: string;
@@ -349,6 +352,7 @@ export interface MedicalRecordRow {
   status: DbMedicalRecordStatus;
   file_url: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface BenefitsPlanRow {

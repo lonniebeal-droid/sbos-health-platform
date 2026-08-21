@@ -40,7 +40,7 @@ export const MedicalRecordsView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <Activity className="w-5 h-5 text-teal-400" />
-            <h2 className="font-bold text-lg">Electronic Health Records & Vitals Vault</h2>
+            <h2 className="font-bold text-lg">Medical Records — Internal Tracking</h2>
             <span
               title={usingLive ? 'Loaded from Supabase medical_records' : 'Demo medical-record fallback'}
               className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -52,13 +52,19 @@ export const MedicalRecordsView: React.FC = () => {
               {usingLive ? <Database className="w-3 h-3" /> : <FlaskConical className="w-3 h-3" />}
               {usingLive ? 'Live records' : 'Demo records'}
             </span>
+            <span
+              title="No external EHR exchange, HIE, or HL7/FHIR ingestion integration exists — records here are entered/tracked internally, not received from an outside system."
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-200 border border-slate-400/30"
+            >
+              Internal medical record tracking
+            </span>
           </div>
           <p className="text-xs text-blue-200 mt-1">
             {loading
               ? 'Loading medical records...'
               : error
                 ? `Could not load live medical records (${error}); showing demo data.`
-                : 'Access lab results, immunization histories, and health telemetry summaries.'}
+                : 'Records tracked internally in this system — no external EHR exchange, HIE, or HL7/FHIR integration is configured.'}
           </p>
         </div>
 

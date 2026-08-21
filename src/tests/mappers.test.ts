@@ -353,17 +353,25 @@ describe('mapMedicalRecord', () => {
     id: 'rec-1', patient_id: 'pat-1', organization_id: 'org-1', record_date: '2026-07-15',
     type: 'Lab Result', title: 'CMP & Lipid Profile', doctor: 'Dr. James Wilson, MD',
     facility: 'SBOS Diagnostic Labs', summary: 'All within range.', status: 'normal',
-    file_url: null, created_at: '2026-07-15T00:00:00Z',
+    file_url: null, created_at: '2026-07-15T00:00:00Z', updated_at: '2026-07-15T00:00:00Z',
   };
 
   it('maps record fields to the domain type', () => {
     const r = mapMedicalRecord(row);
+    expect(r.patientId).toBe('pat-1');
     expect(r.type).toBe('Lab Result');
     expect(r.title).toBe('CMP & Lipid Profile');
     expect(r.doctor).toBe('Dr. James Wilson, MD');
     expect(r.date).toBe('2026-07-15');
     expect(r.status).toBe('normal');
     expect(r.fileUrl).toBeUndefined();
+  });
+
+  it('defaults optional doctor/facility/summary to empty strings when missing', () => {
+    const r = mapMedicalRecord({ ...row, doctor: null, facility: null, summary: null });
+    expect(r.doctor).toBe('');
+    expect(r.facility).toBe('');
+    expect(r.summary).toBe('');
   });
 });
 
