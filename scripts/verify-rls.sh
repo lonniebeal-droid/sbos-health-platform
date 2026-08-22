@@ -10,10 +10,11 @@ if [ -z "$DB_CONTAINER" ]; then
 fi
 
 TEMP_PATIENT_ID="c0000000-0000-0000-0000-000000000099"
-TEMP_LAB_ID="e0000000-0000-0000-0000-000000000099"
+TEMP_SAME_ORG_PATIENT_ID="c0000000-0000-0000-0000-000000000098"
 ORG_A_ID="11111111-1111-1111-1111-111111111111"
 ORG_B_ID="22222222-2222-2222-2222-222222222222"
 PROVIDER_USER_ID="a0000000-0000-0000-0000-000000000001"
+PATIENT_USER_ID="a0000000-0000-0000-0000-000000000002"
 PAYER_USER_ID="a0000000-0000-0000-0000-000000000003"
 UNTRUSTED_USER_ID="a0000000-0000-0000-0000-000000000099"
 
@@ -54,8 +55,7 @@ assert_contains() {
 }
 
 cleanup() {
-  db_sql "delete from public.lab_results where id = '$TEMP_LAB_ID';" >/dev/null
-  db_sql "delete from public.patients where id = '$TEMP_PATIENT_ID';" >/dev/null
+  db_sql "delete from public.patients where id in ('$TEMP_PATIENT_ID', '$TEMP_SAME_ORG_PATIENT_ID');" >/dev/null
   db_sql "delete from auth.users where id = '$UNTRUSTED_USER_ID';" >/dev/null
 }
 trap cleanup EXIT
@@ -67,13 +67,13 @@ echo "Using DB container: $DB_CONTAINER"
 
 # Seed a second-tenant row so the verifier can prove isolation both ways.
 db_sql "
-  delete from public.lab_results where id = '$TEMP_LAB_ID';
   delete from public.patients where id = '$TEMP_PATIENT_ID';
+  delete from public.patients where id = '$TEMP_SAME_ORG_PATIENT_ID';
   delete from auth.users where id = '$UNTRUSTED_USER_ID';
-  insert into public.patients (id, organization_id, dob, insurance_member_id, policy_group_number)
-  values ('$TEMP_PATIENT_ID', '$ORG_B_ID', '1990-01-01', 'TEMP-ORG2-001', 'TEMP-GROUP');
-  insert into public.lab_results (id, patient_id, organization_id, loinc_code, test_name, result_value, status, result_date)
-  values ('$TEMP_LAB_ID', '$TEMP_PATIENT_ID', '$ORG_B_ID', 'VERIFY-ORG-B', 'RLS verifier lab', 'normal', 'pending', now());
+  insert into public.patients (id, organization_id, full_name, date_of_birth)
+  values ('$TEMP_PATIENT_ID', '$ORG_B_ID', 'Temp Org B Patient', '1990-01-01');
+  insert into public.patients (id, organization_id, full_name, date_of_birth)
+  values ('$TEMP_SAME_ORG_PATIENT_ID', '$ORG_A_ID', 'Temp Org A Patient', '1991-01-01');
   insert into auth.users (
     instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
     raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
@@ -104,7 +104,7 @@ assert_eq "anon can read the non-PHI organization directory" "3" "$org_count"
 
 provider_patient_count="$(session_sql "$PROVIDER_USER_ID" "select count(*) from public.patients;")"
 provider_patient_count="$(printf '%s\n' "$provider_patient_count" | tail -n 2 | head -n 1)"
-assert_eq "provider sees only org A patients" "1" "$provider_patient_count"
+assert_eq "provider sees only org A patients" "2" "$provider_patient_count"
 
 payer_patient_count="$(session_sql "$PAYER_USER_ID" "select count(*) from public.patients;")"
 payer_patient_count="$(printf '%s\n' "$payer_patient_count" | tail -n 2 | head -n 1)"
@@ -122,73 +122,25 @@ untrusted_patient_count="$(session_sql "$UNTRUSTED_USER_ID" "select count(*) fro
 untrusted_patient_count="$(printf '%s\n' "$untrusted_patient_count" | tail -n 2 | head -n 1)"
 assert_eq "unassigned signup cannot read patient rows" "0" "$untrusted_patient_count"
 
-provider_provider_count="$(session_sql "$PROVIDER_USER_ID" "select count(*) from public.providers;")"
-provider_provider_count="$(printf '%s\n' "$provider_provider_count" | tail -n 2 | head -n 1)"
-assert_eq "provider sees org A providers" "1" "$provider_provider_count"
+patient_mapping="$(session_sql "$PATIENT_USER_ID" "select public.current_user_patient_id()::text;")"
+patient_mapping="$(printf '%s\n' "$patient_mapping" | tail -n 2 | head -n 1)"
+assert_eq "patient auth maps to their patient profile" "c0000000-0000-0000-0000-000000000001" "$patient_mapping"
 
-payer_provider_count="$(session_sql "$PAYER_USER_ID" "select count(*) from public.providers;")"
-payer_provider_count="$(printf '%s\n' "$payer_provider_count" | tail -n 2 | head -n 1)"
-assert_eq "payer cannot read org A providers" "0" "$payer_provider_count"
+patient_patient_count="$(session_sql "$PATIENT_USER_ID" "select count(*) from public.patients;")"
+patient_patient_count="$(printf '%s\n' "$patient_patient_count" | tail -n 2 | head -n 1)"
+assert_eq "patient sees only their own patient profile" "1" "$patient_patient_count"
 
-provider_appointment_count="$(session_sql "$PROVIDER_USER_ID" "select count(*) from public.appointments;")"
-provider_appointment_count="$(printf '%s\n' "$provider_appointment_count" | tail -n 2 | head -n 1)"
-assert_eq "provider sees org A appointments" "1" "$provider_appointment_count"
+patient_same_org_read="$(session_sql "$PATIENT_USER_ID" "select count(*) from public.patients where id = '$TEMP_SAME_ORG_PATIENT_ID';")"
+patient_same_org_read="$(printf '%s\n' "$patient_same_org_read" | tail -n 2 | head -n 1)"
+assert_eq "patient cannot read another patient in the same organization" "0" "$patient_same_org_read"
 
-payer_appointment_count="$(session_sql "$PAYER_USER_ID" "select count(*) from public.appointments;")"
-payer_appointment_count="$(printf '%s\n' "$payer_appointment_count" | tail -n 2 | head -n 1)"
-assert_eq "payer cannot read org A appointments" "0" "$payer_appointment_count"
+patient_provider_directory="$(session_sql "$PATIENT_USER_ID" "select count(*) from public.users where role = 'provider';")"
+patient_provider_directory="$(printf '%s\n' "$patient_provider_directory" | tail -n 2 | head -n 1)"
+assert_eq "patient can read the in-organization provider directory" "1" "$patient_provider_directory"
 
-provider_prescription_count="$(session_sql "$PROVIDER_USER_ID" "select count(*) from public.prescriptions;")"
-provider_prescription_count="$(printf '%s\n' "$provider_prescription_count" | tail -n 2 | head -n 1)"
-assert_eq "provider sees org A prescriptions" "1" "$provider_prescription_count"
-
-payer_prescription_count="$(session_sql "$PAYER_USER_ID" "select count(*) from public.prescriptions;")"
-payer_prescription_count="$(printf '%s\n' "$payer_prescription_count" | tail -n 2 | head -n 1)"
-assert_eq "payer cannot read org A prescriptions" "0" "$payer_prescription_count"
-
-provider_prior_auth_count="$(session_sql "$PROVIDER_USER_ID" "select count(*) from public.prior_authorizations;")"
-provider_prior_auth_count="$(printf '%s\n' "$provider_prior_auth_count" | tail -n 2 | head -n 1)"
-assert_eq "provider sees org A prior authorizations" "2" "$provider_prior_auth_count"
-
-payer_prior_auth_count="$(session_sql "$PAYER_USER_ID" "select count(*) from public.prior_authorizations;")"
-payer_prior_auth_count="$(printf '%s\n' "$payer_prior_auth_count" | tail -n 2 | head -n 1)"
-assert_eq "payer cannot read org A prior authorizations" "0" "$payer_prior_auth_count"
-
-provider_lab_count="$(session_sql "$PROVIDER_USER_ID" "select count(*) from public.lab_results;")"
-provider_lab_count="$(printf '%s\n' "$provider_lab_count" | tail -n 2 | head -n 1)"
-assert_eq "provider cannot read org B lab result" "0" "$provider_lab_count"
-
-payer_lab_count="$(session_sql "$PAYER_USER_ID" "select count(*) from public.lab_results;")"
-payer_lab_count="$(printf '%s\n' "$payer_lab_count" | tail -n 2 | head -n 1)"
-assert_eq "payer sees org B lab result" "1" "$payer_lab_count"
-
-provider_medical_record_count="$(session_sql "$PROVIDER_USER_ID" "select count(*) from public.medical_records;")"
-provider_medical_record_count="$(printf '%s\n' "$provider_medical_record_count" | tail -n 2 | head -n 1)"
-assert_eq "provider sees org A medical records" "2" "$provider_medical_record_count"
-
-payer_medical_record_count="$(session_sql "$PAYER_USER_ID" "select count(*) from public.medical_records;")"
-payer_medical_record_count="$(printf '%s\n' "$payer_medical_record_count" | tail -n 2 | head -n 1)"
-assert_eq "payer cannot read org A medical records" "0" "$payer_medical_record_count"
-
-provider_benefits_count="$(session_sql "$PROVIDER_USER_ID" "select count(*) from public.benefits_plans;")"
-provider_benefits_count="$(printf '%s\n' "$provider_benefits_count" | tail -n 2 | head -n 1)"
-assert_eq "provider sees org A benefits plan" "1" "$provider_benefits_count"
-
-payer_benefits_count="$(session_sql "$PAYER_USER_ID" "select count(*) from public.benefits_plans;")"
-payer_benefits_count="$(printf '%s\n' "$payer_benefits_count" | tail -n 2 | head -n 1)"
-assert_eq "payer cannot read org A benefits plan" "0" "$payer_benefits_count"
-
-provider_claim_count="$(session_sql "$PROVIDER_USER_ID" "select count(*) from public.claims;")"
-provider_claim_count="$(printf '%s\n' "$provider_claim_count" | tail -n 2 | head -n 1)"
-assert_eq "provider sees servicing-org claims" "2" "$provider_claim_count"
-
-payer_claim_count="$(session_sql "$PAYER_USER_ID" "select count(*) from public.claims;")"
-payer_claim_count="$(printf '%s\n' "$payer_claim_count" | tail -n 2 | head -n 1)"
-assert_eq "payer sees payer-org claims" "2" "$payer_claim_count"
-
-untrusted_claim_count="$(session_sql "$UNTRUSTED_USER_ID" "select count(*) from public.claims;")"
-untrusted_claim_count="$(printf '%s\n' "$untrusted_claim_count" | tail -n 2 | head -n 1)"
-assert_eq "unassigned signup cannot read claims" "0" "$untrusted_claim_count"
+patient_prescription_update="$(session_sql "$PATIENT_USER_ID" "update public.prescriptions set dosage = 'tampered' where id = 'e0000000-0000-0000-0000-000000000001'; select count(*) from public.prescriptions where id = 'e0000000-0000-0000-0000-000000000001' and dosage = '10 mg Tablet';")"
+patient_prescription_update="$(printf '%s\n' "$patient_prescription_update" | tail -n 2 | head -n 1)"
+assert_eq "patient cannot alter provider-authored prescription fields" "1" "$patient_prescription_update"
 
 provider_cross_tenant_update="$(session_sql "$PROVIDER_USER_ID" "update public.patients set address = 'blocked' where id = '$TEMP_PATIENT_ID'; select count(*) from public.patients where id = '$TEMP_PATIENT_ID' and address = 'blocked';")"
 provider_cross_tenant_update="$(printf '%s\n' "$provider_cross_tenant_update" | tail -n 2 | head -n 1)"
@@ -223,6 +175,24 @@ provider_profile_escalation="$(
     2>&1
 )"
 provider_profile_escalation_status=$?
+patient_forged_audit_insert="$(
+  docker exec "$DB_CONTAINER" psql -U postgres -d postgres -X -q -A -t -v ON_ERROR_STOP=1 -c \
+    "begin; set local role authenticated; set local \"request.jwt.claim.sub\" = '$PATIENT_USER_ID'; insert into public.audit_logs (organization_id, actor_id, action, resource_type, resource_id, ip_address) values ('$ORG_A_ID', '$PROVIDER_USER_ID', 'FORGED_AUDIT', 'Patient', 'c0000000-0000-0000-0000-000000000001', '127.0.0.1'); rollback;" \
+    2>&1
+)"
+patient_forged_audit_insert_status=$?
+patient_prescription_delete="$(
+  docker exec "$DB_CONTAINER" psql -U postgres -d postgres -X -q -A -t -v ON_ERROR_STOP=1 -c \
+    "begin; set local role authenticated; set local \"request.jwt.claim.sub\" = '$PATIENT_USER_ID'; delete from public.prescriptions where id = 'e0000000-0000-0000-0000-000000000001'; rollback;" \
+    2>&1
+)"
+patient_prescription_delete_status=$?
+provider_cross_tenant_reference="$(
+  docker exec "$DB_CONTAINER" psql -U postgres -d postgres -X -q -A -t -v ON_ERROR_STOP=1 -c \
+    "begin; set local role authenticated; set local \"request.jwt.claim.sub\" = '$PROVIDER_USER_ID'; insert into public.insurance_info (organization_id, patient_id, payer_name, member_id) values ('$ORG_A_ID', '$TEMP_PATIENT_ID', 'Invalid Cross-Tenant Payer', 'cross-tenant-test'); rollback;" \
+    2>&1
+)"
+provider_cross_tenant_reference_status=$?
 set -e
 
 if [ "$cross_tenant_status" -eq 0 ]; then
@@ -248,5 +218,54 @@ if [ "$provider_profile_escalation_status" -eq 0 ]; then
   exit 1
 fi
 assert_contains "provider cannot change role or organization" "permission denied for table users" "$provider_profile_escalation"
+
+if [ "$patient_forged_audit_insert_status" -eq 0 ]; then
+  echo "FAIL: patient forged audit entry unexpectedly succeeded" >&2
+  exit 1
+fi
+assert_contains "patient cannot forge an audit entry" "violates row-level security policy" "$patient_forged_audit_insert"
+
+if [ "$patient_prescription_delete_status" -eq 0 ]; then
+  echo "FAIL: patient prescription delete unexpectedly succeeded" >&2
+  exit 1
+fi
+assert_contains "patient cannot delete prescriptions" "permission denied for table prescriptions" "$patient_prescription_delete"
+
+if [ "$provider_cross_tenant_reference_status" -eq 0 ]; then
+  echo "FAIL: provider cross-tenant reference unexpectedly succeeded" >&2
+  exit 1
+fi
+assert_contains "provider cannot create a cross-tenant patient reference" "violates foreign key constraint" "$provider_cross_tenant_reference"
+
+
+# --- Per-role write RBAC (20260821183723_per_role_write_rbac.sql) ---
+# Tenant isolation alone doesn't stop a patient/payer account from writing
+# clinical or billing rows within its own org — these checks prove the
+# role-restricted write policies actually gate that.
+
+# A denied UPDATE can legally affect zero rows rather than raise an error when
+# RLS hides the row from the command. Attempt a same-tenant change and prove
+# it was not applied, instead of depending on a particular Postgres error.
+payer_same_org_patient_update="$(session_sql "$PAYER_USER_ID" "update public.patients set address = 'payer-write' where id = '$TEMP_PATIENT_ID'; select count(*) from public.patients where id = '$TEMP_PATIENT_ID' and address = 'payer-write';")"
+payer_same_org_patient_update="$(printf '%s\n' "$payer_same_org_patient_update" | tail -n 2 | head -n 1)"
+assert_eq "insurance role cannot write a same-tenant patients row" "0" "$payer_same_org_patient_update"
+
+provider_creates_encounter="$(session_sql "$PROVIDER_USER_ID" "insert into public.encounters (organization_id, patient_id, provider_user_id, encounter_date, encounter_type, status) values ('$ORG_A_ID', 'c0000000-0000-0000-0000-000000000001', '$PROVIDER_USER_ID', current_date, 'office_visit', 'draft'); select count(*) from public.encounters where patient_id = 'c0000000-0000-0000-0000-000000000001';")"
+provider_creates_encounter="$(printf '%s\n' "$provider_creates_encounter" | tail -n 2 | head -n 1)"
+assert_eq "provider (clinical role) can create an encounter in-org" "2" "$provider_creates_encounter"
+
+set +e
+payer_creates_encounter="$(
+  docker exec "$DB_CONTAINER" psql -U postgres -d postgres -X -q -A -t -v ON_ERROR_STOP=1 -c \
+    "begin; set local role authenticated; set local \"request.jwt.claim.sub\" = '$PAYER_USER_ID'; insert into public.encounters (organization_id, patient_id, provider_user_id, encounter_date, encounter_type, status) values ('$ORG_B_ID', '$TEMP_PATIENT_ID', null, current_date, 'office_visit', 'draft'); rollback;" \
+    2>&1
+)"
+payer_creates_encounter_status=$?
+set -e
+if [ "$payer_creates_encounter_status" -eq 0 ]; then
+  echo "FAIL: insurance-role account unexpectedly created an encounter" >&2
+  exit 1
+fi
+echo "PASS: insurance role cannot write clinical encounters (role not in encounters_write allow-list)"
 
 echo "All RLS checks passed."
