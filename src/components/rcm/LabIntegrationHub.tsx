@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { samplePatient } from '../../data/mockData';
-import { TestTube, Send, Database, FlaskConical } from 'lucide-react';
+import { TestTube, Send, Database, FlaskConical, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
-import { mapLabResult, type LabOrderDisplay } from '../../lib/db/mappers';
+import { mapLabResult, mapPatient, type LabOrderDisplay } from '../../lib/db/mappers';
 import { useAsync } from '../../lib/hooks/useAsync';
+import { useAuth } from '../../lib/authContext';
 
 const demoLabOrders: LabOrderDisplay[] = [
   {
@@ -30,18 +31,60 @@ const demoLabOrders: LabOrderDisplay[] = [
 ];
 
 export const LabIntegrationHub: React.FC = () => {
+  const auth = useAuth();
   const [localLabOrders, setLocalLabOrders] = useState<LabOrderDisplay[]>([]);
   const [newTest, setNewTest] = useState('Thyroid Stimulating Hormone (TSH) w/ Reflex T4');
   const [loincCode, setLoincCode] = useState('11580-8');
+  const [submitting, setSubmitting] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [orderedSuccess, setOrderedSuccess] = useState(false);
 
+  // Bump to re-read lab results after a new order is saved.
+  const [refreshKey, setRefreshKey] = useState(0);
   const { data: realLabResults, loading, error } = useAsync<LabOrderDisplay[]>(
     async () => (await getRepositories().labResults.list()).map(mapLabResult),
     isSupabaseConfigured,
+    [refreshKey],
+  );
+  const { data: realPatients } = useAsync(
+    async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
+    isSupabaseConfigured,
   );
   const usingLive = isSupabaseConfigured && !!realLabResults && realLabResults.length > 0;
+  const canPersistOrder = isSupabaseConfigured && !!auth.profile?.organization_id && !!realPatients && realPatients.length > 0;
+  const activePatient = isSupabaseConfigured && realPatients && realPatients.length > 0
+    ? realPatients[0]
+    : samplePatient;
   const labOrders = [...localLabOrders, ...(usingLive ? realLabResults : demoLabOrders)];
 
-  const handleOrderLab = () => {
+  const handleOrderLab = async () => {
+    setOrderError(null);
+    if (canPersistOrder && auth.profile?.organization_id) {
+      // Live mode: persist an internal pending lab order (admin/provider per RLS).
+      setSubmitting(true);
+      try {
+        await getRepositories().labResults.create({
+          organization_id: auth.profile.organization_id,
+          patient_id: activePatient.id,
+          ordering_provider_id: auth.profile.id,
+          loinc_code: loincCode.trim(),
+          test_name: newTest.trim(),
+          result_value: 'Pending — awaiting specimen collection',
+          reference_range: null,
+          status: 'pending',
+          result_date: new Date().toISOString().split('T')[0],
+        });
+        setRefreshKey((k) => k + 1);
+        setOrderedSuccess(true);
+        setTimeout(() => setOrderedSuccess(false), 4000);
+      } catch (e) {
+        setOrderError(e instanceof Error ? e.message : 'Could not save the lab order');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+    // Dev-fallback mode without Supabase: local-only demo order.
     const newOrder: LabOrderDisplay = {
       id: `lab_${Date.now()}`,
       testName: newTest,
@@ -52,7 +95,6 @@ export const LabIntegrationHub: React.FC = () => {
       result: 'Demo order queued. External lab transmission is not configured.',
       source: 'demo',
     };
-
     setLocalLabOrders((prev) => [newOrder, ...prev]);
   };
 
@@ -85,7 +127,7 @@ export const LabIntegrationHub: React.FC = () => {
           </div>
           <p className="text-xs text-blue-200 mt-1">
             {usingLive
-              ? 'Showing lab results recorded directly in this system. There is no external lab vendor or HL7/FHIR integration — results here are entered/tracked internally, not received from a real lab interface. New orders below remain demo-only.'
+              ? 'Showing lab results recorded directly in this system. There is no external lab vendor or HL7/FHIR integration — orders save internally and are never sent to a real lab.'
               : 'Review a demo lab-order workflow. There is no external lab vendor or HL7/FHIR integration configured.'}
           </p>
           {loading && <p className="text-[11px] text-blue-100 mt-1">Checking for live lab results...</p>}
@@ -99,7 +141,7 @@ export const LabIntegrationHub: React.FC = () => {
         <div className="lg:col-span-5 space-y-4 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md">
           <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
             <Send className="w-4 h-4 text-blue-500" />
-            Create Demo Lab Order for {samplePatient.name}
+            Create Lab Order for {activePatient.name}
           </h3>
 
           <div className="space-y-3 text-xs">
@@ -123,13 +165,26 @@ export const LabIntegrationHub: React.FC = () => {
               />
             </div>
 
-            <button
-              onClick={handleOrderLab}
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2"
-            >
-              <TestTube className="w-4 h-4 text-teal-300" />
-              Queue Demo Lab Order
-            </button>
+            {orderError && (
+              <div className="p-3 rounded-xl bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 font-bold flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4" /> Order failed: {orderError}
+              </div>
+            )}
+
+            {orderedSuccess ? (
+              <div className="p-3 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-center flex items-center justify-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" /> Order saved to internal lab queue.
+              </div>
+            ) : (
+              <button
+                onClick={handleOrderLab}
+                disabled={submitting}
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <TestTube className="w-4 h-4 text-teal-300" />}
+                Queue Lab Order
+              </button>
+            )}
           </div>
         </div>
 

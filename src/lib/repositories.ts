@@ -19,9 +19,9 @@ import type {
   ClaimRow, ClaimWithDetails, DbClaimStatus,
   ClaimPaymentRow, ClaimAdjustmentRow, ClaimDenialRow, ClaimStatusEventRow,
   DbPaymentSource, DbAdjustmentType,
-  PrescriptionRow, PrescriptionWithProvider,
+  PrescriptionRow, PrescriptionInsert, PrescriptionWithProvider,
   PriorAuthorizationRow, PriorAuthorizationInsert, PriorAuthorizationWithNames, DbPriorAuthStatus,
-  LabResultRow,
+  LabResultRow, LabResultInsert,
   MedicalRecordRow, MedicalRecordInsert,
   AuditLogRow, AuditLogInsert,
 } from './db/database.types';
@@ -216,7 +216,15 @@ export function createRepositories(client: SupabaseClient) {
         );
       },
     },
-    labResults: crud<LabResultRow>(client, 'lab_results', 'result_date'),
+    labResults: {
+      ...crud<LabResultRow>(client, 'lab_results', 'result_date'),
+      /** Create an internal lab order (admin/provider/coder per RLS). */
+      async create(payload: LabResultInsert): Promise<LabResultRow> {
+        return unwrap<LabResultRow>(
+          await client.from('lab_results').insert(payload).select().single(),
+        );
+      },
+    },
 
     // PROPOSED schema — see the AppointmentRow comment in database.types.ts.
     // Not applied to the live project yet, so `.from('appointments')` calls
@@ -329,6 +337,12 @@ export function createRepositories(client: SupabaseClient) {
 
     prescriptions: {
       ...crud<PrescriptionRow>(client, 'prescriptions'),
+      /** Create an internal prescription order (provider/admin only per RLS). */
+      async create(payload: PrescriptionInsert): Promise<PrescriptionRow> {
+        return unwrap<PrescriptionRow>(
+          await client.from('prescriptions').insert(payload).select().single(),
+        );
+      },
       /** Prescriptions with the prescribing provider's name. No live providers
        * table — provider_id points straight at users.id. */
       async listDetailed(): Promise<PrescriptionWithProvider[]> {
