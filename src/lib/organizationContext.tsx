@@ -30,6 +30,8 @@ interface OrgContextType {
   error: string | null;
   /** Where allOrgs came from — useful for surfacing "demo data" states. */
   source: OrgDataSource;
+  /** Re-fetch organizations from Supabase (e.g. after creating one). */
+  reload: () => Promise<void>;
 }
 
 const OrgContext = createContext<OrgContextType | undefined>(undefined);
@@ -41,32 +43,32 @@ export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<OrgDataSource>('fallback');
 
-  useEffect(() => {
+  const load = async () => {
     if (!isSupabaseConfigured) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const orgs = await getOrganizationService().listOrganizations();
-        if (cancelled) return;
-        if (orgs.length > 0) {
-          setAllOrgs(orgs);
-          setCurrentOrg(orgs[0]);
-          setSource('supabase');
-        }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load organizations');
-        // Keep the fallback list already in state.
-      } finally {
-        if (!cancelled) setLoading(false);
+    try {
+      const orgs = await getOrganizationService().listOrganizations();
+      if (orgs.length > 0) {
+        setAllOrgs(orgs);
+        setSource('supabase');
+        // Keep the user's selection if it still exists; otherwise default to
+        // the first real organization instead of a sample row.
+        setCurrentOrg((prev) => (orgs.some((o) => o.id === prev.id) ? prev : orgs[0]));
       }
-    })();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load organizations');
+      // Keep the fallback list already in state.
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return () => { cancelled = true; };
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <OrgContext.Provider value={{ currentOrg, setCurrentOrg, allOrgs, loading, error, source }}>
+    <OrgContext.Provider value={{ currentOrg, setCurrentOrg, allOrgs, loading, error, source, reload: load }}>
       {children}
     </OrgContext.Provider>
   );
