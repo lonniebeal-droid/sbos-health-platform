@@ -5,9 +5,11 @@ import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
 import { mapPrescription, mapPatient } from '../../lib/db/mappers';
 import { useAsync } from '../../lib/hooks/useAsync';
-import { Pill, CheckCircle2, AlertTriangle, Send, ShieldCheck, MapPin, FlaskConical, Database } from 'lucide-react';
+import { useAuth } from '../../lib/authContext';
+import { Pill, CheckCircle2, AlertTriangle, Send, ShieldCheck, MapPin, FlaskConical, Database, Loader2 } from 'lucide-react';
 
 export const ElectronicPrescribing: React.FC = () => {
+  const auth = useAuth();
   const [localPrescriptions, setLocalPrescriptions] = useState<Prescription[]>([]);
   const [medName, setMedName] = useState('Amoxicillin 500mg');
   const [dosage, setDosage] = useState('500mg Oral Capsule');
@@ -15,22 +17,29 @@ export const ElectronicPrescribing: React.FC = () => {
   const [pharmacy, setPharmacy] = useState('Walgreens Pharmacy #1049 (2120 Market St, San Francisco, CA)');
   const [allergyAlert, setAllergyAlert] = useState<string | null>(null);
   const [isSent, setIsSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
+  // Bump to re-read prescriptions after a new order is saved.
+  const [refreshKey, setRefreshKey] = useState(0);
   const { data: realPrescriptions, loading, error } = useAsync<Prescription[]>(
     async () => (await getRepositories().prescriptions.listDetailed()).map(mapPrescription),
     isSupabaseConfigured,
+    [refreshKey],
   );
   const { data: realPatients } = useAsync(
     async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
     isSupabaseConfigured,
   );
   const usingLive = isSupabaseConfigured && !!realPrescriptions && realPrescriptions.length > 0;
+  const canPersistOrder = isSupabaseConfigured && !!auth.profile?.organization_id && !!realPatients && realPatients.length > 0;
   const activePatient = isSupabaseConfigured && realPatients && realPatients.length > 0
     ? realPatients[0]
     : samplePatient;
   const prescriptions = [...localPrescriptions, ...(usingLive ? realPrescriptions : samplePrescriptions)];
+  const prescriberName = auth.profile?.full_name || 'Provider';
 
-  const handleCheckAllergiesAndPrescribe = () => {
+  const handleCheckAllergiesAndPrescribe = async () => {
     // Check patient allergies (e.g., Sulfa, Penicillin)
     const patientAllergies = activePatient.allergies.map(a => a.toLowerCase());
     const isPenicillinDrug = medName.toLowerCase().includes('amox') || medName.toLowerCase().includes('penic');
@@ -41,20 +50,47 @@ export const ElectronicPrescribing: React.FC = () => {
     }
 
     setAllergyAlert(null);
-    const newRx: Prescription = {
-      id: `rx_${Date.now()}`,
-      patientId: activePatient.id,
-      patientName: activePatient.name,
-      medicationName: medName,
-      dosage,
-      frequency,
-      prescribedBy: 'Dr. James Wilson, MD',
-      refillsRemaining: 2,
-      pharmacyName: pharmacy,
-      status: 'active'
-    };
 
-    setLocalPrescriptions((prev) => [newRx, ...prev]);
+    // Live mode: persist the order as a real prescriptions row attributed to
+    // the signed-in provider (RLS restricts writes to admin/provider).
+    if (canPersistOrder && auth.profile?.organization_id) {
+      setSubmitting(true);
+      setOrderError(null);
+      try {
+        await getRepositories().prescriptions.create({
+          organization_id: auth.profile.organization_id,
+          patient_id: activePatient.id,
+          provider_id: auth.profile.id,
+          medication_name: medName.trim(),
+          dosage: dosage.trim(),
+          frequency: frequency.trim(),
+          refills_remaining: 0,
+          status: 'active',
+          pharmacy_name: pharmacy.trim() || null,
+        });
+        setRefreshKey((k) => k + 1);
+      } catch (e) {
+        setOrderError(e instanceof Error ? e.message : 'Could not save the prescription');
+        setSubmitting(false);
+        return;
+      }
+      setSubmitting(false);
+    } else {
+      // Dev-fallback mode without Supabase: local-only demo order.
+      const newRx: Prescription = {
+        id: `rx_${Date.now()}`,
+        patientId: activePatient.id,
+        patientName: activePatient.name,
+        medicationName: medName,
+        dosage,
+        frequency,
+        prescribedBy: prescriberName,
+        refillsRemaining: 2,
+        pharmacyName: pharmacy,
+        status: 'active'
+      };
+      setLocalPrescriptions((prev) => [newRx, ...prev]);
+    }
     setIsSent(true);
     setTimeout(() => setIsSent(false), 4000);
   };
@@ -69,7 +105,7 @@ export const ElectronicPrescribing: React.FC = () => {
             <Pill className="w-5 h-5 text-teal-400" />
             <h2 className="font-bold text-lg">Electronic Prescribing Review Hub</h2>
             <span
-              title={usingLive ? 'Loaded from Supabase prescriptions; new e-Rx transmission remains demo-only' : 'Demo workflow — no Surescripts connection is configured in this app yet'}
+              title={usingLive ? 'Loaded from Supabase prescriptions; orders save to the patient record (internal tracking only)' : 'Demo workflow — no Surescripts connection is configured in this app yet'}
               className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
                 usingLive
                   ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
@@ -92,7 +128,7 @@ export const ElectronicPrescribing: React.FC = () => {
               : error
                 ? `Could not load live prescriptions (${error}); showing demo data.`
                 : usingLive
-                  ? 'Review live prescriptions with local allergy checks. No real e-prescribing network connection exists — new orders below are demo-only and never transmitted.'
+                  ? 'Orders are saved to the patient record and attributed to you. No e-prescribing network (Surescripts) exists — nothing is transmitted to a pharmacy.'
                   : 'Demo prescribing workflow with local allergy checks. No real e-prescribing network connection exists — nothing here is ever transmitted.'}
           </p>
         </div>
@@ -104,7 +140,7 @@ export const ElectronicPrescribing: React.FC = () => {
         <div className="lg:col-span-5 space-y-4 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md">
           <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
             <Send className="w-4 h-4 text-blue-500" />
-            Create Demo Medication Order for {activePatient.name}
+            Create Medication Order for {activePatient.name}
           </h3>
 
           <div className="space-y-3 text-xs">
@@ -158,17 +194,24 @@ export const ElectronicPrescribing: React.FC = () => {
               </div>
             )}
 
+            {orderError && (
+              <div className="p-3 rounded-xl bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 text-xs font-bold flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4" /> Order failed: {orderError}
+              </div>
+            )}
+
             {isSent ? (
               <div className="p-3 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-xs font-bold text-center flex items-center justify-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" /> Demo prescription queued. Live Surescripts transmission is not configured yet.
+                <CheckCircle2 className="w-4 h-4" /> {usingLive ? 'Order saved to the patient record.' : 'Demo order created locally.'} Not transmitted to any pharmacy.
               </div>
             ) : (
               <button
                 onClick={handleCheckAllergiesAndPrescribe}
-                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2"
+                disabled={submitting}
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2"
               >
-                <ShieldCheck className="w-4 h-4 text-teal-300" />
-                Run Allergy Check & Queue Demo e-Rx Order
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4 text-teal-300" />}
+                Run Allergy Check & Save Medication Order
               </button>
             )}
           </div>

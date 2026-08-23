@@ -173,6 +173,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           organizationSource={orgs.source}
           organizationLoading={orgs.loading}
           organizationError={orgs.error}
+          onOrganizationsChanged={orgs.reload}
         />
       )}
 

@@ -20,6 +20,15 @@ RUN npm ci
 # Copy source and build the frontend (vite -> dist/) and server bundle
 # (esbuild -> dist/server.cjs).
 COPY . .
+
+# Vite inlines import.meta.env.* into the JS bundle at BUILD time, so the
+# Supabase project coordinates must be passed as build args. These hold the
+# publishable anon key only — never service-role secrets.
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
 RUN npm run build
 
 # ---------------------------------------------------------------------------

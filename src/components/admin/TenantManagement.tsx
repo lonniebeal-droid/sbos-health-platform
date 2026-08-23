@@ -2,6 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { TenantOrganization, TenantType } from '../../types';
 import { mockTenants } from '../../data/mockTenants';
 import type { OrgDataSource, TenantOrg } from '../../lib/organizationContext';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getOrganizationService } from '../../lib/services/organizationService';
+import { useAuth } from '../../lib/authContext';
+import type { OrganizationInsert } from '../../lib/db/database.types';
 import { 
   Building2, 
   Palette, 
@@ -31,6 +35,8 @@ interface TenantManagementProps {
   organizationSource?: OrgDataSource;
   organizationLoading?: boolean;
   organizationError?: string | null;
+  /** Called after a live organization is provisioned so the org list refreshes. */
+  onOrganizationsChanged?: () => Promise<void> | void;
 }
 
 function toTenantType(type: TenantOrg['type']): TenantType {
@@ -83,7 +89,9 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({
   organizationSource = 'fallback',
   organizationLoading = false,
   organizationError = null,
+  onOrganizationsChanged,
 }) => {
+  const auth = useAuth();
   const sourceTenants = useMemo(
     () => organizationSource === 'supabase'
       ? liveOrganizations.map(tenantFromOrg)
@@ -98,6 +106,12 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<TenantOrganization>(selectedTenant);
   const [showNewModal, setShowNewModal] = useState(false);
+  const [provisionError, setProvisionError] = useState<string | null>(null);
+  const [provisioning, setProvisioning] = useState(false);
+  // Live provisioning requires a signed-in admin: the organizations INSERT
+  // policy is admin-only (platform_admins membership).
+  const canProvisionLive =
+    organizationSource === 'supabase' && isSupabaseConfigured && auth.role === 'admin';
 
   // New Tenant Form State
   const [newTenantName, setNewTenantName] = useState('');
@@ -131,14 +145,45 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({
     }
   };
 
-  const handleCreateTenant = (e: React.FormEvent) => {
+  const handleCreateTenant = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTenantName || !newSubdomain) return;
+    if (!newTenantName || !newSubdomain || provisioning) return;
+
+    const slug = newSubdomain.toLowerCase().replace(/[^a-z0-9]+/g, '') || `t${Date.now()}`;
+    setProvisionError(null);
+    setProvisioning(true);
+
+    if (canProvisionLive) {
+      try {
+        // Persist the tenant as a real organizations row. Branding/billing
+        // columns do not exist yet, so only name + slug are stored; the
+        // remaining white-label fields stay a local preview.
+        const payload: OrganizationInsert = { name: newTenantName, slug };
+        const created = await getOrganizationService().createOrganization(payload);
+        await onOrganizationsChanged?.();
+
+        setShowNewModal(false);
+        setNewTenantName('');
+        setNewSubdomain('');
+        setNewCustomDomain('');
+        setProvisioning(false);
+        if (created && 'id' in created) {
+          onSelectTenant(String((created as { id: unknown }).id));
+        }
+        return;
+      } catch (err) {
+        setProvisionError(
+          err instanceof Error ? err.message : 'Failed to provision the organization.',
+        );
+        setProvisioning(false);
+        return;
+      }
+    }
 
     const newTenant: TenantOrganization = {
       id: `tnt_${Date.now()}`,
       name: newTenantName,
-      subdomain: `${newSubdomain.toLowerCase().replace(/\s+/g, '')}.sbos.health`,
+      subdomain: `${slug}.sbos.health`,
       customDomain: newCustomDomain || `portal.${newSubdomain.toLowerCase()}.org`,
       tenantType: newType,
       primaryColor: 'from-blue-600 to-indigo-600',
@@ -485,19 +530,24 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({
                 </div>
               </div>
 
-              <div className="pt-4 flex justify-end gap-3">
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveEdit}
-                  className="px-5 py-2 rounded-xl bg-blue-600 text-white font-extrabold text-xs shadow-md"
-                >
-                  Save White-Label Configuration
-                </button>
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <span className="text-[11px] text-slate-400 max-w-[60%]">
+                  Branding edits are a local preview — white-label settings are not persisted to the database yet.
+                </span>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveEdit}
+                    className="px-5 py-2 rounded-xl bg-blue-600 text-white font-extrabold text-xs shadow-md"
+                  >
+                    Save White-Label Configuration
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -567,6 +617,18 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({
                 </select>
               </div>
 
+              {provisionError && (
+                <div className="p-3 rounded-xl bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 font-bold flex items-center gap-1.5">
+                  <Lock className="w-4 h-4" /> {provisionError}
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                {canProvisionLive
+                  ? 'Provisioning creates a real organization record. Branding, billing, and feature flags shown elsewhere on this page are a local preview until those settings have database storage.'
+                  : 'Demo mode: this tenant is created locally in the browser only and disappears on reload.'}
+              </p>
+
               <div className="pt-3 flex justify-end gap-2">
                 <button
                   type="button"
@@ -577,9 +639,10 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold shadow-md"
+                  disabled={provisioning}
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-extrabold shadow-md"
                 >
-                  Provision Tenant
+                  {provisioning ? 'Provisioning…' : canProvisionLive ? 'Provision Tenant' : 'Create Demo Tenant'}
                 </button>
               </div>
             </form>

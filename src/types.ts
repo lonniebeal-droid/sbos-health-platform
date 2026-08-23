@@ -196,7 +196,7 @@ export interface MedicalRecord {
   id: string;
   patientId: string;
   date: string;
-  type: 'Lab Result' | 'Immunization' | 'Visit Summary' | 'Imaging';
+  type: 'Lab Result' | 'Immunization' | 'Visit Summary' | 'Imaging' | 'Clinical Note';
   title: string;
   doctor: string;
   facility: string;

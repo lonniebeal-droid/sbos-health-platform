@@ -14,15 +14,15 @@ import type { TenantOrg } from './organizationContext';
 import type {
   OrganizationRow, OrganizationInsert,
   UserRow,
-  PatientRow, PatientWithDetails, InsuranceInfoRow, ProviderIdentityRow,
+  PatientRow, PatientInsert, PatientWithDetails, InsuranceInfoRow, InsuranceInfoInsert, ProviderIdentityRow,
   AppointmentRow, AppointmentInsert, AppointmentWithNames, DbAppointmentStatus,
   ClaimRow, ClaimWithDetails, DbClaimStatus,
   ClaimPaymentRow, ClaimAdjustmentRow, ClaimDenialRow, ClaimStatusEventRow,
   DbPaymentSource, DbAdjustmentType,
-  PrescriptionRow, PrescriptionWithProvider,
+  PrescriptionRow, PrescriptionInsert, PrescriptionWithProvider,
   PriorAuthorizationRow, PriorAuthorizationInsert, PriorAuthorizationWithNames, DbPriorAuthStatus,
-  LabResultRow,
-  MedicalRecordRow,
+  LabResultRow, LabResultInsert,
+  MedicalRecordRow, MedicalRecordInsert,
   AuditLogRow, AuditLogInsert,
 } from './db/database.types';
 
@@ -160,14 +160,36 @@ export function createRepositories(client: SupabaseClient) {
       },
     },
 
-    medicalRecords: crud<MedicalRecordRow>(client, 'medical_records', 'record_date'),
+    medicalRecords: {
+      ...crud<MedicalRecordRow>(client, 'medical_records', 'record_date'),
+      /** Persist a new record (e.g. a signed BIRP 'Clinical Note'). */
+      async create(payload: MedicalRecordInsert): Promise<MedicalRecordRow> {
+        return unwrap<MedicalRecordRow>(
+          await client.from('medical_records').insert(payload).select().single(),
+        );
+      },
+    },
     // No separate benefits_plans table — deductible/OOP/copay figures live on
     // insurance_info directly (see mapBenefitsPlan). Callers wanting the UI
     // BenefitsPlan view use insuranceInfo.list().map(mapBenefitsPlan).
-    insuranceInfo: crud<InsuranceInfoRow>(client, 'insurance_info'),
+    insuranceInfo: {
+      ...crud<InsuranceInfoRow>(client, 'insurance_info'),
+      /** Attach a coverage record to a patient (intake step 2). */
+      async create(payload: InsuranceInfoInsert): Promise<InsuranceInfoRow> {
+        return unwrap<InsuranceInfoRow>(
+          await client.from('insurance_info').insert(payload).select().single(),
+        );
+      },
+    },
 
     patients: {
       ...crud<PatientRow>(client, 'patients'),
+      /** Register a new patient (intake). RLS limits writes to staff roles. */
+      async create(payload: PatientInsert): Promise<PatientRow> {
+        return unwrap<PatientRow>(
+          await client.from('patients').insert(payload).select().single(),
+        );
+      },
       /** Patients with their insurance/coverage record (member ID, group number
        * live there, not on patients — see PatientWithDetails). No user join
        * needed: live `patients` carries name/email/phone directly. */
@@ -194,7 +216,15 @@ export function createRepositories(client: SupabaseClient) {
         );
       },
     },
-    labResults: crud<LabResultRow>(client, 'lab_results', 'result_date'),
+    labResults: {
+      ...crud<LabResultRow>(client, 'lab_results', 'result_date'),
+      /** Create an internal lab order (admin/provider/coder per RLS). */
+      async create(payload: LabResultInsert): Promise<LabResultRow> {
+        return unwrap<LabResultRow>(
+          await client.from('lab_results').insert(payload).select().single(),
+        );
+      },
+    },
 
     // PROPOSED schema — see the AppointmentRow comment in database.types.ts.
     // Not applied to the live project yet, so `.from('appointments')` calls
@@ -307,6 +337,12 @@ export function createRepositories(client: SupabaseClient) {
 
     prescriptions: {
       ...crud<PrescriptionRow>(client, 'prescriptions'),
+      /** Create an internal prescription order (provider/admin only per RLS). */
+      async create(payload: PrescriptionInsert): Promise<PrescriptionRow> {
+        return unwrap<PrescriptionRow>(
+          await client.from('prescriptions').insert(payload).select().single(),
+        );
+      },
       /** Prescriptions with the prescribing provider's name. No live providers
        * table — provider_id points straight at users.id. */
       async listDetailed(): Promise<PrescriptionWithProvider[]> {

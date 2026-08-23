@@ -5,9 +5,13 @@ import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
 import { mapMedicalRecord, mapPatient } from '../../lib/db/mappers';
 import { useAsync } from '../../lib/hooks/useAsync';
-import { Mic, MicOff, Sparkles, CheckCircle2, Save, RefreshCw, AlertCircle, Tag, Database, FlaskConical } from 'lucide-react';
+import { useAuth } from '../../lib/authContext';
+import { Mic, MicOff, Sparkles, CheckCircle2, Save, RefreshCw, AlertCircle, Loader2, Tag, Database, FlaskConical } from 'lucide-react';
 
 export const ClinicalDocumentation: React.FC = () => {
+  const auth = useAuth();
+  // Bump to re-read medical records after a note is saved.
+  const [refreshKey, setRefreshKey] = useState(0);
   const { data: realPatients, loading: patientsLoading, error: patientsError } = useAsync<Patient[]>(
     async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
     isSupabaseConfigured,
@@ -15,6 +19,7 @@ export const ClinicalDocumentation: React.FC = () => {
   const { data: realRecords, loading: recordsLoading, error: recordsError } = useAsync<MedicalRecord[]>(
     async () => (await getRepositories().medicalRecords.list()).map(mapMedicalRecord),
     isSupabaseConfigured,
+    [refreshKey],
   );
 
   const usingLivePatient = isSupabaseConfigured && !!realPatients && realPatients.length > 0;
@@ -27,12 +32,16 @@ export const ClinicalDocumentation: React.FC = () => {
   const error = patientsError || recordsError;
 
   const [rawDictation, setRawDictation] = useState(
-    'Patient Sarah Jenkins presented for follow-up session. Reported work stress 7/10 and hypertension. Performed 45 min CBT restructuring and diaphragmatic breathing loop. Patient responded well with stress level reduction to 3/10. Continue biweekly sessions and Lisinopril.'
+    'Patient presented for follow-up session. Reported work stress 7/10 and hypertension. Performed 45 min CBT restructuring and diaphragmatic breathing loop. Patient responded well with stress level reduction to 3/10. Continue biweekly sessions and current antihypertensive.'
   );
   const [isRecording, setIsRecording] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [birpNote, setBirpNote] = useState<BIRPNote>(sampleBIRPNote);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  // The signing clinician is the signed-in provider — never a hardcoded name.
+  const providerName = auth.profile?.full_name || 'Provider';
 
   useEffect(() => {
     setBirpNote((note) => ({
@@ -74,7 +83,7 @@ export const ClinicalDocumentation: React.FC = () => {
           id: `birp_${Date.now()}`,
           patientId: activePatient.id,
           patientName: activePatient.name,
-          providerName: 'Dr. Amara Patel, PsyD',
+          providerName,
           date: new Date().toISOString().split('T')[0],
           behavior: data.birpNote.behavior || 'Patient presented alert and coherent.',
           intervention: data.birpNote.intervention || 'Utilized CBT cognitive reframing.',
@@ -92,7 +101,45 @@ export const ClinicalDocumentation: React.FC = () => {
     }
   };
 
-  const handleSaveNote = () => {
+  const handleSaveNote = async () => {
+    setSaveError(null);
+    // Live mode: persist the signed note as a 'Clinical Note' medical record
+    // (RLS restricts writes to clinical staff within the tenant).
+    if (isSupabaseConfigured && usingLivePatient && auth.profile?.organization_id) {
+      setIsSaving(true);
+      try {
+        const summary = [
+          `B: ${birpNote.behavior}`,
+          `I: ${birpNote.intervention}`,
+          `R: ${birpNote.response}`,
+          `P: ${birpNote.plan}`,
+          `Suggested ICD-10: ${birpNote.suggestedICD.join('; ')}`,
+          `Suggested CPT: ${birpNote.suggestedCPT.join('; ')}`,
+        ].join('\n');
+        await getRepositories().medicalRecords.create({
+          organization_id: auth.profile.organization_id,
+          patient_id: activePatient.id,
+          record_date: new Date().toISOString().split('T')[0],
+          type: 'Clinical Note',
+          title: `BIRP Note — ${providerName}`,
+          doctor: providerName,
+          facility: null,
+          summary,
+          status: 'normal',
+          file_url: null,
+        });
+        setBirpNote({ ...birpNote, status: 'signed' });
+        setRefreshKey((k) => k + 1);
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 3000);
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : 'Could not save the note');
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+    // Dev-fallback mode without Supabase: local confirmation only.
     setBirpNote({ ...birpNote, status: 'signed' });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
@@ -108,7 +155,7 @@ export const ClinicalDocumentation: React.FC = () => {
             <Sparkles className="w-5 h-5 text-teal-400" />
             <h2 className="font-bold text-lg">AI Clinical Documentation & BIRP Note Generator</h2>
             <span
-              title={usingLivePatient ? 'Patient context loaded from Supabase; note save/signature remains demo-only' : 'Demo patient context — connect Supabase to load live patient records'}
+              title={usingLivePatient ? 'Patient context loaded from Supabase; signed notes persist to the patient record' : 'Demo patient context — connect Supabase to load live patient records'}
               className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
                 usingLivePatient
                   ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
@@ -263,17 +310,22 @@ export const ClinicalDocumentation: React.FC = () => {
 
           {/* Action Footer */}
           <div className="pt-2 flex justify-end">
-            {savedSuccess ? (
+            {saveError ? (
+              <div className="px-4 py-2 rounded-xl bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 text-xs font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4" /> Save failed: {saveError}
+              </div>
+            ) : savedSuccess ? (
               <div className="px-4 py-2 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" /> Demo note generated. EHR sync and digital signing are not configured yet.
+                <CheckCircle2 className="w-4 h-4" /> Note signed and saved to the patient record.
               </div>
             ) : (
               <button
                 onClick={handleSaveNote}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition-colors flex items-center gap-1.5"
+                disabled={isSaving}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-bold shadow-md transition-colors flex items-center gap-1.5"
               >
-                <Save className="w-4 h-4" />
-                Digitally Sign & Lock BIRP Record
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Sign & Save to Patient Record
               </button>
             )}
           </div>

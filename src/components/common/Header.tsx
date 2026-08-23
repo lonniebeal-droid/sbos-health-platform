@@ -27,6 +27,9 @@ import {
 interface HeaderProps {
   activeRole: Role;
   onRoleChange: (role: Role) => void;
+  // When true the signed-in user's portal is fixed to their real role; the
+  // persona switcher is hidden (client-side enforcement mirroring server RLS).
+  roleLocked?: boolean;
   isDarkMode: boolean;
   onToggleTheme: () => void;
   onOpenAIAssistant: () => void;
@@ -44,6 +47,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   activeRole,
   onRoleChange,
+  roleLocked = false,
   isDarkMode,
   onToggleTheme,
   onOpenAIAssistant,
@@ -141,30 +145,40 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Persona Swapper Tabs (Desktop) */}
+          {/* Persona Swapper Tabs (Desktop). Hidden when the role is locked
+              to the authenticated profile — users cannot browse other portals. */}
           <div className="hidden lg:flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
             {roleConfigs.map((config) => {
               const isActive = activeRole === config.role;
+              if (roleLocked && !isActive) return null;
               return (
-                <button
+                <span
                   key={config.role}
                   id={`role-tab-${config.role}`}
-                  onClick={() => onRoleChange(config.role)}
-                  className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap ${
+                  aria-current={isActive && roleLocked ? 'true' : undefined}
+                  className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap ${
                     isActive
                       ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-slate-700'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      : 'text-slate-600 dark:text-slate-400'
                   }`}
                 >
                   <span className={`w-2 h-2 rounded-full ${config.color}`} />
                   {config.icon}
                   {config.label}
-                </button>
+                </span>
               );
             })}
           </div>
 
-          {/* Mobile Persona Select / Dropdown Trigger */}
+          {/* Mobile: static portal badge when locked, dropdown otherwise */}
+          {roleLocked ? (
+            <div className="lg:hidden">
+              <span className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                <span className={`w-2 h-2 rounded-full ${roleConfigs.find(r => r.role === activeRole)?.color}`} />
+                {roleConfigs.find(r => r.role === activeRole)?.label}
+              </span>
+            </div>
+          ) : (
           <div className="relative lg:hidden">
             <button
               id="mobile-persona-toggle"
@@ -199,6 +213,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             )}
           </div>
+          )}
 
           {/* Right Action Tools */}
           <div className="flex items-center gap-2">
@@ -231,40 +246,40 @@ export const Header: React.FC<HeaderProps> = ({
                 className="relative p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <Bell className="w-4 h-4" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900" />
               </button>
 
               {showNotifications && (
                 <div className="absolute right-0 mt-2 w-80 rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <span className="font-bold text-sm text-slate-900 dark:text-white">Healthcare Notifications</span>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
-                      3 New
+                    <span className="font-bold text-sm text-slate-900 dark:text-white">Notifications</span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                      Demo preview
                     </span>
                   </div>
-                  <div className="space-y-3 mt-3 text-xs">
-                    <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900">
-                      <p className="font-semibold text-blue-900 dark:text-blue-200">Claim Adjudicated</p>
-                      <p className="text-blue-700 dark:text-blue-400 text-[11px]">CLM-2026-884102 was approved by payer for $1,100.00.</p>
-                      <span className="text-[10px] text-blue-500 mt-1 block">10 mins ago</span>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">Telehealth Appointment Tomorrow</p>
-                      <p className="text-slate-600 dark:text-slate-400 text-[11px]">Dr. James Wilson at 10:00 AM. Check camera & mic.</p>
-                      <span className="text-[10px] text-slate-400 mt-1 block">1 hour ago</span>
-                    </div>
-                  </div>
+                  <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
+                    Real-time notifications (claim events, appointment reminders) are not wired to a delivery service yet. This panel shows sample content only.
+                  </p>
                 </div>
               )}
             </div>
 
-            {/* Profile Avatar */}
+            {/* Profile Avatar — initials for real users; mock photo only in
+                dev-fallback mode where no authenticated identity exists. */}
             <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
-              <img
-                src={currentUser.avatar}
-                alt={displayName}
-                className="w-8 h-8 rounded-full object-cover ring-2 ring-blue-500/30"
-              />
+              {userName ? (
+                <span
+                  aria-label={displayName}
+                  className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-teal-400 text-white flex items-center justify-center text-xs font-bold ring-2 ring-blue-500/30"
+                >
+                  {displayName.split(/\s+/).map((part) => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()}
+                </span>
+              ) : (
+                <img
+                  src={currentUser.avatar}
+                  alt={displayName}
+                  className="w-8 h-8 rounded-full object-cover ring-2 ring-blue-500/30"
+                />
+              )}
               <div className="hidden xl:block text-left text-xs">
                 <p className="font-bold text-slate-900 dark:text-white leading-tight">{displayName}</p>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[120px]">{displayOrg}</p>

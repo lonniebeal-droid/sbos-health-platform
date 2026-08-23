@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-DB_CONTAINER="${DB_CONTAINER:-$(docker ps --format '{{.Names}}' | rg '^supabase_db_' -m 1 || true)}"
+DB_CONTAINER="${DB_CONTAINER:-$(docker ps --format '{{.Names}}' | grep -E '^supabase_db_' | head -n 1 || true)}"
 if [ -z "$DB_CONTAINER" ]; then
   echo "No running Supabase DB container found. Start it with 'supabase start' first." >&2
   exit 1
@@ -16,6 +16,7 @@ ORG_B_ID="22222222-2222-2222-2222-222222222222"
 PROVIDER_USER_ID="a0000000-0000-0000-0000-000000000001"
 PATIENT_USER_ID="a0000000-0000-0000-0000-000000000002"
 PAYER_USER_ID="a0000000-0000-0000-0000-000000000003"
+ADMIN_USER_ID="a0000000-0000-0000-0000-000000000004"
 UNTRUSTED_USER_ID="a0000000-0000-0000-0000-000000000099"
 
 db_sql() {
@@ -267,5 +268,61 @@ if [ "$payer_creates_encounter_status" -eq 0 ]; then
   exit 1
 fi
 echo "PASS: insurance role cannot write clinical encounters (role not in encounters_write allow-list)"
+
+# --- MVP persistence policies (20260823000000_mvp_persistence_policies.sql) ---
+# Patient self-service bill payment, clinical-note storage, admin-only tenant
+# provisioning. Each new capability must be provably narrow.
+
+patient_self_pay="$(session_sql "$PATIENT_USER_ID" "insert into public.claim_payments (organization_id, claim_id, payment_source, payment_method, amount_cents, posted_by_user_id) values ('$ORG_A_ID', 'f0000000-0000-0000-0000-000000000001', 'patient', 'card', 5000, '$PATIENT_USER_ID'); select count(*) from public.claim_payments where posted_by_user_id = '$PATIENT_USER_ID';")"
+patient_self_pay="$(printf '%s\n' "$patient_self_pay" | tail -n 2 | head -n 1)"
+assert_eq "patient can post a patient-source payment on their own claim" "1" "$patient_self_pay"
+
+set +e
+patient_payer_pay="$(
+  docker exec "$DB_CONTAINER" psql -U postgres -d postgres -X -q -A -t -v ON_ERROR_STOP=1 -c \
+    "begin; set local role authenticated; set local \"request.jwt.claim.sub\" = '$PATIENT_USER_ID'; insert into public.claim_payments (organization_id, claim_id, payment_source, payment_method, amount_cents) values ('$ORG_A_ID', 'f0000000-0000-0000-0000-000000000001', 'payer', 'check', 100); rollback;" \
+    2>&1
+)"
+patient_payer_pay_status=$?
+patient_cross_claim_pay="$(
+  docker exec "$DB_CONTAINER" psql -U postgres -d postgres -X -q -A -t -v ON_ERROR_STOP=1 -c \
+    "begin; set local role authenticated; set local \"request.jwt.claim.sub\" = '$PATIENT_USER_ID'; insert into public.claim_payments (organization_id, claim_id, payment_source, payment_method, amount_cents) values ('$ORG_B_ID', 'f9000000-0000-0000-0000-000000000099', 'patient', 'card', 100); rollback;" \
+    2>&1
+)"
+patient_cross_claim_pay_status=$?
+provider_creates_org="$(
+  docker exec "$DB_CONTAINER" psql -U postgres -d postgres -X -q -A -t -v ON_ERROR_STOP=1 -c \
+    "begin; set local role authenticated; set local \"request.jwt.claim.sub\" = '$PROVIDER_USER_ID'; insert into public.organizations (id, name, slug) values ('33333333-3333-3333-3333-333333333331', 'Rogue Tenant', 'rogue-tenant'); rollback;" \
+    2>&1
+)"
+provider_creates_org_status=$?
+set -e
+
+if [ "$patient_payer_pay_status" -eq 0 ]; then
+  echo "FAIL: patient unexpectedly posted a payer-source payment" >&2
+  exit 1
+fi
+assert_contains "patient cannot post payer-source payments" "violates row-level security policy" "$patient_payer_pay"
+
+if [ "$patient_cross_claim_pay_status" -eq 0 ]; then
+  echo "FAIL: patient unexpectedly paid someone else's claim" >&2
+  exit 1
+fi
+assert_contains "patient cannot pay a claim that is not theirs" "violates row-level security policy" "$patient_cross_claim_pay"
+
+if [ "$provider_creates_org_status" -eq 0 ]; then
+  echo "FAIL: provider unexpectedly provisioned an organization" >&2
+  exit 1
+fi
+assert_contains "non-admin cannot provision an organization" "violates row-level security policy" "$provider_creates_org"
+
+admin_provisions_org="$(session_sql "$ADMIN_USER_ID" "insert into public.organizations (id, name, slug) values ('33333333-3333-3333-3333-333333333339', 'Verifier Temp Tenant', 'verifier-temp-tenant'); select count(*) from public.organizations where slug = 'verifier-temp-tenant';")"
+admin_provisions_org="$(printf '%s\n' "$admin_provisions_org" | tail -n 2 | head -n 1)"
+assert_eq "admin can provision an organization" "1" "$admin_provisions_org"
+db_sql "delete from public.organizations where slug = 'verifier-temp-tenant';" >/dev/null
+
+provider_clinical_note="$(session_sql "$PROVIDER_USER_ID" "insert into public.medical_records (organization_id, patient_id, record_date, type, title, summary, status) values ('$ORG_A_ID', 'c0000000-0000-0000-0000-000000000001', current_date, 'Clinical Note', 'BIRP Note — verifier', 'Behavior/Intervention/Response/Plan test note.', 'normal'); select count(*) from public.medical_records where title = 'BIRP Note — verifier';")"
+provider_clinical_note="$(printf '%s\n' "$provider_clinical_note" | tail -n 2 | head -n 1)"
+assert_eq "provider can save a signed clinical note" "1" "$provider_clinical_note"
 
 echo "All RLS checks passed."

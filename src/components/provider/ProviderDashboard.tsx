@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
 import { PatientManagement } from './PatientManagement';
+import { PatientIntake } from './PatientIntake';
 import { ClinicalDocumentation } from './ClinicalDocumentation';
 import { AIClinicalAssistant } from './AIClinicalAssistant';
 import { ElectronicPrescribing } from '../rcm/ElectronicPrescribing';
 import { PriorAuthEngine } from '../rcm/PriorAuthEngine';
 import { LabIntegrationHub } from '../rcm/LabIntegrationHub';
-import { Users, FileText, Stethoscope, Pill, ShieldAlert, TestTube } from 'lucide-react';
+import { Users, UserPlus, FileText, Stethoscope, Pill, ShieldAlert, TestTube } from 'lucide-react';
 
 export const ProviderDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'patients' | 'clinical' | 'assistant' | 'erx' | 'prior_auth' | 'labs'>('patients');
+  const [activeTab, setActiveTab] = useState<'patients' | 'intake' | 'clinical' | 'assistant' | 'erx' | 'prior_auth' | 'labs'>('patients');
 
   const navItems = [
     { id: 'patients', label: 'EHR Patient Directory', icon: <Users className="w-4 h-4" /> },
-    { id: 'clinical', label: 'AI Clinical BIRP Notes', icon: <FileText className="w-4 h-4" /> },
-    { id: 'erx', label: 'e-Prescribing (Demo)', icon: <Pill className="w-4 h-4" /> },
+    { id: 'intake', label: 'Patient Intake', icon: <UserPlus className="w-4 h-4" /> },
+    { id: 'clinical', label: 'AI Clinical BIRP Notes', icon: <FileText className="w-4 h-4" /> },    { id: 'erx', label: 'e-Prescribing (Demo)', icon: <Pill className="w-4 h-4" /> },
     { id: 'prior_auth', label: 'Prior Auth Engine', icon: <ShieldAlert className="w-4 h-4" /> },
     { id: 'labs', label: 'Lab Workflow (Demo)', icon: <TestTube className="w-4 h-4" /> },
     { id: 'assistant', label: 'Clinical AI Decision Support', icon: <Stethoscope className="w-4 h-4" /> },
@@ -40,9 +41,10 @@ export const ProviderDashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* Main Views */}
-      {activeTab === 'patients' && <PatientManagement />}
-      {activeTab === 'clinical' && <ClinicalDocumentation />}
+    {/* Main Views */}
+    {activeTab === 'patients' && <PatientManagement />}
+    {activeTab === 'intake' && <PatientIntake />}
+    {activeTab === 'clinical' && <ClinicalDocumentation />}
       {activeTab === 'erx' && <ElectronicPrescribing />}
       {activeTab === 'prior_auth' && <PriorAuthEngine />}
       {activeTab === 'labs' && <LabIntegrationHub />}

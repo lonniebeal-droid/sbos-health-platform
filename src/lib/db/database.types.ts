@@ -355,7 +355,7 @@ export interface LabResultRow {
   updated_at: string;
 }
 
-export type DbMedicalRecordType = 'Lab Result' | 'Immunization' | 'Visit Summary' | 'Imaging';
+export type DbMedicalRecordType = 'Lab Result' | 'Immunization' | 'Visit Summary' | 'Imaging' | 'Clinical Note';
 export type DbMedicalRecordStatus = 'normal' | 'abnormal' | 'pending';
 
 // Internal medical record tracking only — no external EHR exchange, HIE, or
@@ -397,6 +397,11 @@ export interface AuditLogRow {
 export type OrganizationInsert = Omit<OrganizationRow, 'id' | 'created_at' | 'updated_at'>;
 export type AppointmentInsert = Omit<AppointmentRow, 'id' | 'created_at' | 'updated_at'>;
 export type PriorAuthorizationInsert = Omit<PriorAuthorizationRow, 'id' | 'created_at' | 'updated_at'>;
+export type MedicalRecordInsert = Omit<MedicalRecordRow, 'id' | 'created_at' | 'updated_at'>;
+export type LabResultInsert = Omit<LabResultRow, 'id' | 'created_at' | 'updated_at'>;
+export type PatientInsert = Omit<PatientRow, 'id' | 'created_at' | 'updated_at'>;
+export type InsuranceInfoInsert = Omit<InsuranceInfoRow, 'id' | 'created_at' | 'updated_at'>;
+export type PrescriptionInsert = Omit<PrescriptionRow, 'id' | 'created_at' | 'updated_at'>;
 export type AuditLogInsert = Omit<AuditLogRow, 'id' | 'created_at'>;
 
 /** Table-name → row-type registry (handy for generic helpers/tests). `providers` is
