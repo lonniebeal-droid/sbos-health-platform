@@ -22,7 +22,7 @@ import type {
   PrescriptionRow, PrescriptionWithProvider,
   PriorAuthorizationRow, PriorAuthorizationInsert, PriorAuthorizationWithNames, DbPriorAuthStatus,
   LabResultRow,
-  MedicalRecordRow,
+  MedicalRecordRow, MedicalRecordInsert,
   AuditLogRow, AuditLogInsert,
 } from './db/database.types';
 
@@ -160,7 +160,15 @@ export function createRepositories(client: SupabaseClient) {
       },
     },
 
-    medicalRecords: crud<MedicalRecordRow>(client, 'medical_records', 'record_date'),
+    medicalRecords: {
+      ...crud<MedicalRecordRow>(client, 'medical_records', 'record_date'),
+      /** Persist a new record (e.g. a signed BIRP 'Clinical Note'). */
+      async create(payload: MedicalRecordInsert): Promise<MedicalRecordRow> {
+        return unwrap<MedicalRecordRow>(
+          await client.from('medical_records').insert(payload).select().single(),
+        );
+      },
+    },
     // No separate benefits_plans table — deductible/OOP/copay figures live on
     // insurance_info directly (see mapBenefitsPlan). Callers wanting the UI
     // BenefitsPlan view use insuranceInfo.list().map(mapBenefitsPlan).
