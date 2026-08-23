@@ -575,6 +575,148 @@ describe('repositories', () => {
   });
 });
 
+describe('create() write paths (persistence-backed workflows)', () => {
+  function insertCapture(row: Record<string, unknown>) {
+    let seenTable = '';
+    let seenOps: unknown[][] = [];
+    const repos = createRepositories(fakeClient((table, ops) => {
+      seenTable = table; seenOps = ops;
+      return { data: row, error: null };
+    }));
+    return {
+      repos,
+      expectInsertInto(table: string, payloadPart: Record<string, unknown>) {
+        expect(seenTable).toBe(table);
+        const insertOp = seenOps.find((op) => op[0] === 'insert');
+        expect(insertOp).toBeDefined();
+        expect(insertOp![1]).toMatchObject(payloadPart);
+        expect(seenOps).toContainEqual(['single']);
+      },
+    };
+  }
+
+  it('organizations.create inserts name + slug (admin provisioning)', async () => {
+    const { repos, expectInsertInto } = insertCapture({ id: 'o9', name: 'New Clinic', slug: 'new-clinic' });
+    const row = await repos.organizations.create({ name: 'New Clinic', slug: 'new-clinic' });
+    expect(row.id).toBe('o9');
+    expectInsertInto('organizations', { name: 'New Clinic', slug: 'new-clinic' });
+  });
+
+  it('patients.create inserts the intake fields', async () => {
+    const { repos, expectInsertInto } = insertCapture({ id: 'p9', full_name: 'Intake Patient' });
+    const row = await repos.patients.create({
+      organization_id: 'org-1',
+      user_id: null,
+      full_name: 'Intake Patient',
+      date_of_birth: '1990-05-01',
+      gender: 'female',
+      email: 'intake@example.com',
+      phone: '+1-555-0100',
+      address: '1 Main St, Oakland, CA 94607',
+    });
+    expect(row.id).toBe('p9');
+    expectInsertInto('patients', { organization_id: 'org-1', full_name: 'Intake Patient', email: 'intake@example.com' });
+  });
+
+  it('insuranceInfo.create attaches coverage to a patient', async () => {
+    const { repos, expectInsertInto } = insertCapture({ id: 'ins-9' });
+    await repos.insuranceInfo.create({
+      organization_id: 'org-1',
+      patient_id: 'p9',
+      payer_name: 'Aetna PPO',
+      plan_name: null,
+      member_id: 'MEM-001',
+      group_number: null,
+      policy_holder_name: null,
+      relationship_to_patient: 'self',
+      coverage_start_date: null,
+      coverage_end_date: null,
+      status: 'active',
+      network_type: 'PPO',
+      individual_deductible_cents: null,
+      deductible_met_cents: null,
+      out_of_pocket_max_cents: null,
+      out_of_pocket_met_cents: null,
+      copays: null,
+    });
+    expectInsertInto('insurance_info', { organization_id: 'org-1', patient_id: 'p9', payer_name: 'Aetna PPO', member_id: 'MEM-001' });
+  });
+
+  it('medicalRecords.create persists a signed clinical note', async () => {
+    const { repos, expectInsertInto } = insertCapture({ id: 'mr-9' });
+    await repos.medicalRecords.create({
+      organization_id: 'org-1',
+      patient_id: 'p9',
+      record_date: '2026-08-23',
+      type: 'Clinical Note',
+      title: 'BIRP Note — Dr. James Wilson',
+      doctor: 'Dr. James Wilson',
+      facility: null,
+      summary: 'B: ... I: ... R: ... P: ...',
+      status: 'normal',
+      file_url: null,
+    });
+    expectInsertInto('medical_records', { patient_id: 'p9', type: 'Clinical Note', status: 'normal' });
+  });
+
+  it('labResults.create orders a lab as pending', async () => {
+    const { repos, expectInsertInto } = insertCapture({ id: 'lab-9' });
+    await repos.labResults.create({
+      organization_id: 'org-1',
+      patient_id: 'p9',
+      ordering_provider_id: 'u-doc',
+      loinc_code: '004043',
+      test_name: 'CBC',
+      result_value: 'Pending — awaiting specimen collection',
+      reference_range: null,
+      status: 'pending',
+      result_date: '2026-08-23',
+    });
+    expectInsertInto('lab_results', { patient_id: 'p9', test_name: 'CBC', status: 'pending' });
+  });
+
+  it('appointments.create books with patient, provider, org and schedule', async () => {
+    const { repos, expectInsertInto } = insertCapture({ id: 'apt-9' });
+    await repos.appointments.create({
+      organization_id: 'org-1',
+      patient_id: 'p9',
+      provider_id: 'u-doc',
+      appointment_type: 'telehealth',
+      status: 'scheduled',
+      scheduled_at: '2026-08-25T10:00:00',
+      telehealth_room_url: null,
+      chief_complaint: 'Routine Consultation',
+    });
+    expectInsertInto('appointments', { patient_id: 'p9', provider_id: 'u-doc', appointment_type: 'telehealth' });
+  });
+
+  it('prescriptions.create records the prescriber and medication', async () => {
+    const { repos, expectInsertInto } = insertCapture({ id: 'rx-9' });
+    await repos.prescriptions.create({
+      organization_id: 'org-1',
+      patient_id: 'p9',
+      provider_id: 'u-doc',
+      medication_name: 'Sertraline',
+      dosage: '50 mg',
+      frequency: 'Once daily',
+      refills_remaining: 3,
+      status: 'active',
+      pharmacy_name: 'Walgreens',
+    });
+    expectInsertInto('prescriptions', { patient_id: 'p9', medication_name: 'Sertraline', dosage: '50 mg', provider_id: 'u-doc' });
+  });
+
+  it('every create() rejects with the raw Postgrest message when RLS blocks the insert', async () => {
+    const repos = createRepositories(fakeClient(() => ({ data: null, error: { message: 'new row violates row-level security policy' } })));
+    await expect(repos.patients.create({ organization_id: 'org-1', user_id: null, full_name: 'X', date_of_birth: null, gender: null, email: null, phone: null, address: null })).rejects.toThrow(/row-level security/);
+    await expect(repos.appointments.create({
+      organization_id: 'org-1', patient_id: 'p9', provider_id: 'u-doc',
+      appointment_type: 'telehealth', status: 'scheduled', scheduled_at: '2026-08-25T10:00:00',
+      telehealth_room_url: null, chief_complaint: null,
+    })).rejects.toThrow(/row-level security/);
+  });
+});
+
 describe('organizationService', () => {
   it('maps rows to TenantOrg view', async () => {
     const svc = createOrganizationService(fakeClient(() => ({
