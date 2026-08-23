@@ -14,7 +14,7 @@ import type { TenantOrg } from './organizationContext';
 import type {
   OrganizationRow, OrganizationInsert,
   UserRow,
-  PatientRow, PatientWithDetails, InsuranceInfoRow, ProviderIdentityRow,
+  PatientRow, PatientInsert, PatientWithDetails, InsuranceInfoRow, InsuranceInfoInsert, ProviderIdentityRow,
   AppointmentRow, AppointmentInsert, AppointmentWithNames, DbAppointmentStatus,
   ClaimRow, ClaimWithDetails, DbClaimStatus,
   ClaimPaymentRow, ClaimAdjustmentRow, ClaimDenialRow, ClaimStatusEventRow,
@@ -172,10 +172,24 @@ export function createRepositories(client: SupabaseClient) {
     // No separate benefits_plans table — deductible/OOP/copay figures live on
     // insurance_info directly (see mapBenefitsPlan). Callers wanting the UI
     // BenefitsPlan view use insuranceInfo.list().map(mapBenefitsPlan).
-    insuranceInfo: crud<InsuranceInfoRow>(client, 'insurance_info'),
+    insuranceInfo: {
+      ...crud<InsuranceInfoRow>(client, 'insurance_info'),
+      /** Attach a coverage record to a patient (intake step 2). */
+      async create(payload: InsuranceInfoInsert): Promise<InsuranceInfoRow> {
+        return unwrap<InsuranceInfoRow>(
+          await client.from('insurance_info').insert(payload).select().single(),
+        );
+      },
+    },
 
     patients: {
       ...crud<PatientRow>(client, 'patients'),
+      /** Register a new patient (intake). RLS limits writes to staff roles. */
+      async create(payload: PatientInsert): Promise<PatientRow> {
+        return unwrap<PatientRow>(
+          await client.from('patients').insert(payload).select().single(),
+        );
+      },
       /** Patients with their insurance/coverage record (member ID, group number
        * live there, not on patients — see PatientWithDetails). No user join
        * needed: live `patients` carries name/email/phone directly. */

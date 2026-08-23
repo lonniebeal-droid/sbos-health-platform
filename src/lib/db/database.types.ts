@@ -399,6 +399,8 @@ export type AppointmentInsert = Omit<AppointmentRow, 'id' | 'created_at' | 'upda
 export type PriorAuthorizationInsert = Omit<PriorAuthorizationRow, 'id' | 'created_at' | 'updated_at'>;
 export type MedicalRecordInsert = Omit<MedicalRecordRow, 'id' | 'created_at' | 'updated_at'>;
 export type LabResultInsert = Omit<LabResultRow, 'id' | 'created_at' | 'updated_at'>;
+export type PatientInsert = Omit<PatientRow, 'id' | 'created_at' | 'updated_at'>;
+export type InsuranceInfoInsert = Omit<InsuranceInfoRow, 'id' | 'created_at' | 'updated_at'>;
 export type AuditLogInsert = Omit<AuditLogRow, 'id' | 'created_at'>;
 
 /** Table-name → row-type registry (handy for generic helpers/tests). `providers` is
