@@ -6,6 +6,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Baked into the frontend bundle at build time (publishable key only).
+        # Set these in your shell env or a .env file next to this compose file;
+        # without them the app boots in demo mode.
+        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL:-}
+        - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY:-}
     ports:
       - "3000:3000"
     environment:
