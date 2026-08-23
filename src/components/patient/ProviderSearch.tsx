@@ -4,28 +4,38 @@ import { Provider, Appointment } from '../../types';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories } from '../../lib/repositories';
 import { mapAppointment, mapPatient, mapProvider } from '../../lib/db/mappers';
-import type { AppointmentInsert } from '../../lib/db/database.types';
+import type { AppointmentInsert, PatientRow } from '../../lib/db/database.types';
 import { useAsync } from '../../lib/hooks/useAsync';
 import { useOrg } from '../../lib/organizationContext';
-import { Search, MapPin, Star, Calendar, Clock, Video, CheckCircle, Stethoscope, Database, FlaskConical } from 'lucide-react';
+import { useAuth } from '../../lib/authContext';
+import { Search, MapPin, Star, Calendar, Clock, Video, CheckCircle, Stethoscope, Database, FlaskConical, AlertCircle } from 'lucide-react';
 
 interface ProviderSearchProps {
   onBookAppointment: (appointment: Appointment) => void;
   onLaunchTelehealth: () => void;
 }
 
+function tomorrowISO(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
+}
+
 export const ProviderSearch: React.FC<ProviderSearchProps> = ({
   onBookAppointment,
   onLaunchTelehealth
 }) => {
+  const auth = useAuth();
   const { currentOrg, source: organizationSource } = useOrg();
   const [query, setQuery] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('All');
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
-  const [bookingDate, setBookingDate] = useState('2026-07-29');
+  const [bookingDate, setBookingDate] = useState(tomorrowISO());
   const [bookingTime, setBookingTime] = useState('10:00 AM');
   const [visitType, setVisitType] = useState<'telehealth' | 'in_person'>('telehealth');
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [submittingBooking, setSubmittingBooking] = useState(false);
   const { data: realProviders, loading, error } = useAsync<Provider[]>(
     async () => (await getRepositories().providers.listDetailed()).map(mapProvider),
     isSupabaseConfigured,
@@ -34,8 +44,22 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
     async () => (await getRepositories().patients.listDetailed()).map(mapPatient),
     isSupabaseConfigured,
   );
+  // Patients book for THEMSELVES (RLS enforces patient_id = their row);
+  // staff books for the first listed patient until a picker is added.
+  const { data: selfPatientRow } = useAsync<PatientRow | null>(async () => {
+    const userId = auth.session?.user.id;
+    if (!userId || auth.role !== 'patient') return null;
+    const rows = await getRepositories().patients.list();
+    return rows.find((p) => p.user_id === userId) ?? null;
+  }, isSupabaseConfigured && auth.role === 'patient', [auth.session?.user.id, auth.role]);
   const usingLive = isSupabaseConfigured && !!realProviders && realProviders.length > 0;
-  const canPersistBooking = usingLive && organizationSource === 'supabase' && !!realPatients?.[0];
+  const bookingTargetPatient: { id: string; name: string; organizationId: string } | null =
+    selfPatientRow
+      ? { id: selfPatientRow.id, name: selfPatientRow.full_name, organizationId: selfPatientRow.organization_id }
+      : realPatients?.[0]
+        ? { id: realPatients[0].id, name: realPatients[0].name, organizationId: currentOrg.id }
+        : null;
+  const canPersistBooking = usingLive && organizationSource === 'supabase' && !!bookingTargetPatient;
   const providers = usingLive ? realProviders : sampleProviders;
 
   const specialties = ['All', 'Internal Medicine', 'Behavioral Health', 'Cardiology'];
@@ -50,7 +74,10 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
   const handleConfirmBooking = async () => {
     if (!selectedProvider) return;
 
-    if (canPersistBooking) {
+    setBookingError(null);
+
+    if (canPersistBooking && bookingTargetPatient) {
+      setSubmittingBooking(true);
       try {
         const [time, period] = bookingTime.split(' ');
         const [hourText, minute = '00'] = time.split(':');
@@ -59,9 +86,9 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
         if (period === 'AM' && hour === 12) hour = 0;
         const scheduledAt = `${bookingDate}T${String(hour).padStart(2, '0')}:${minute}:00`;
         const payload: AppointmentInsert = {
-          patient_id: realPatients[0].id,
+          patient_id: bookingTargetPatient.id,
           provider_id: selectedProvider.id,
-          organization_id: currentOrg.id,
+          organization_id: bookingTargetPatient.organizationId,
           appointment_type: visitType,
           status: 'scheduled',
           scheduled_at: scheduledAt,
@@ -72,7 +99,7 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
         onBookAppointment({
           ...mapAppointment({
             ...created,
-            patient: { full_name: realPatients[0].name },
+            patient: { full_name: bookingTargetPatient.name },
             provider: { full_name: selectedProvider.name },
           }),
           // mapAppointment() leaves providerSpecialty blank (no live source);
@@ -85,15 +112,19 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
           setSelectedProvider(null);
         }, 2500);
         return;
-      } catch {
-        // Keep the demo booking path available if the live insert is blocked by RLS.
+      } catch (e) {
+        // Live booking failed — surface the error instead of faking success.
+        setBookingError(e instanceof Error ? e.message : 'Booking failed');
+        setSubmittingBooking(false);
+        return;
       }
     }
+    setSubmittingBooking(false);
 
     const newApt: Appointment = {
       id: `apt_${Date.now()}`,
       patientId: 'pat_001',
-      patientName: 'Sarah Jenkins',
+      patientName: bookingTargetPatient?.name ?? 'Sample Patient',
       providerId: selectedProvider.id,
       providerName: selectedProvider.name,
       providerSpecialty: selectedProvider.specialty,
@@ -315,16 +346,23 @@ export const ProviderSearch: React.FC<ProviderSearchProps> = ({
               </div>
             </div>
 
+            {bookingError && (
+              <div className="p-3 rounded-xl bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 text-xs font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4" /> Booking failed: {bookingError}
+              </div>
+            )}
+
             {bookingSuccess ? (
-              <div className="p-3 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-bold text-center flex items-center justify-center gap-2">
-                <CheckCircle className="w-4 h-4" /> Demo appointment created. Calendar sync is not configured yet.
+              <div className="p-3 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-xs font-bold text-center flex items-center justify-center gap-2">
+                <CheckCircle className="w-4 h-4" /> Appointment booked.
               </div>
             ) : (
               <button
                 onClick={handleConfirmBooking}
-                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition-colors"
+                disabled={submittingBooking}
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-bold shadow-md transition-colors"
               >
-                {canPersistBooking ? 'Confirm Live Booking' : 'Confirm Demo Booking'}
+                {canPersistBooking ? 'Confirm Booking' : 'Confirm Demo Booking'}
               </button>
             )}
 
