@@ -15,7 +15,11 @@ import { LoginScreen } from './components/auth/LoginScreen';
 function AppShell() {
   const auth = useAuth();
   const { allOrgs, source: organizationSource } = useOrg();
+  // In authenticated mode the portal is locked to the signed-in user's real
+  // role (RLS already scopes their data; the UI must not offer other portals).
+  // Free persona switching remains only in dev-fallback mode (no Supabase).
   const [currentRole, setCurrentRole] = useState<UserRole>('patient');
+  const roleLocked = auth.configured && !!auth.role;
   const [activeTenantId, setActiveTenantId] = useState<string>('tnt_001');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isAiWidgetOpen, setIsAiWidgetOpen] = useState(false);
@@ -58,6 +62,7 @@ function AppShell() {
       <Header
         activeRole={currentRole}
         onRoleChange={setCurrentRole}
+        roleLocked={roleLocked}
         isDarkMode={isDarkMode}
         onToggleTheme={toggleDarkMode}
         onOpenAIAssistant={() => setIsAiWidgetOpen(true)}
