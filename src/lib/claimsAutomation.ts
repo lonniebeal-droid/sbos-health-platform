@@ -97,7 +97,10 @@ export function getNextStepRecommendation(claim: Claim): string {
   }
   if (claim.status === 'denied') {
     const code = claim.denialCode ?? 'OTHER';
-    return DENIAL_REASONS[code].followUp;
+    // Guard: DB denial_code is a free-form string cast via `as DenialCode` in
+    // mappers.ts — values not present in DENIAL_REASONS must not crash.
+    const entry = DENIAL_REASONS[code] ?? DENIAL_REASONS.OTHER;
+    return entry.followUp;
   }
   const classification = classifyClaim(claim);
   if (classification.recommendedAction === 'auto_approve') {

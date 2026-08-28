@@ -87,6 +87,11 @@ describe('getNextStepRecommendation', () => {
     expect(step).toBe(DENIAL_REASONS.OTHER.followUp);
   });
 
+  it('falls back to OTHER follow-up for an unknown denial code (e.g. CO-4) without crashing', () => {
+    const step = getNextStepRecommendation(claim({ status: 'denied', denialCode: 'CO-4' as any }));
+    expect(step).toBe(DENIAL_REASONS.OTHER.followUp);
+  });
+
   it('tells staff an eligible open claim will auto-process', () => {
     const step = getNextStepRecommendation(claim({ status: 'submitted', aiRiskScore: 5, totalBilled: 50 }));
     expect(step).toContain('automatic approval');
