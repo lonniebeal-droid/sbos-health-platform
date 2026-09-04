@@ -109,7 +109,10 @@ let geminiClientKey: string | undefined;
 
 export function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
+  // Treat well-known placeholder values (shipped in .env.example / .env) as
+  // "no key configured" so the AI endpoints return demo fallback responses
+  // instead of failing with an invalid-key 500.
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') return null;
   if (geminiClient && geminiClientKey === apiKey) return geminiClient;
   geminiClient = new GoogleGenAI({
     apiKey,
@@ -153,6 +156,17 @@ async function generateJson(
 }
 
 // ---------------------------
+// AUTH HELPERS (server-side)
+// ---------------------------
+// Lazy-load the server auth module so the rest of the server can be imported
+// in unit tests (Vitest) without pulling in the Supabase admin client.
+let _authMiddleware: typeof import('./src/lib/serverAuth') | null = null;
+async function getAuthMiddleware() {
+  if (!_authMiddleware) _authMiddleware = await import('./src/lib/serverAuth');
+  return _authMiddleware;
+}
+
+// ---------------------------
 // REST API ENDPOINTS
 // ---------------------------
 
@@ -163,7 +177,7 @@ app.get('/api/health', (_req, res) => {
     system: 'SBOS Healthcare Operating System Engine',
     version: '3.4.0-enterprise',
     timestamp: new Date().toISOString(),
-    aiEngineActive: !!process.env.GEMINI_API_KEY,
+    aiEngineActive: getGeminiClient() !== null,
   });
 });
 
@@ -326,12 +340,87 @@ Provide a JSON output with:
 });
 
 // ---------------------------
+// PROTECTED API ROUTES (auth-required)
+//
+// These routes demonstrate the server-side auth middleware stack. They are
+// intentionally lightweight — the real data access still flows through the
+// Supabase client on the front end (src/lib/repositories.ts). The server
+// routes are a gatekeeper for future server-side business logic and provide
+// a reference implementation for the auth + role + permission middleware chain.
+// ---------------------------
+
+// Example: GET /api/me — returns the authenticated user's profile.
+app.get('/api/me', async (req, res) => {
+  try {
+    const auth = await getAuthMiddleware();
+    // Inline the middleware chain for a single route to avoid adding
+    // dependencies on middleware registration order.
+    const token = req.headers.authorization?.startsWith('Bearer ')
+      ? req.headers.authorization.slice(7) : null;
+    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+    const jwtPayload = await auth.verifySupabaseJwt(token);
+    if (!jwtPayload) return res.status(401).json({ error: 'Invalid token' });
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const url = process.env.VITE_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return res.status(500).json({ error: 'Server not configured' });
+    const client = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+    const profile = await auth.lookupProfile(client, jwtPayload.sub);
+    if (!profile) return res.status(401).json({ error: 'Profile not found' });
+
+    return res.json({
+      id: profile.id,
+      email: profile.email,
+      role: profile.role,
+      organizationId: profile.organization_id,
+      fullName: profile.full_name,
+    });
+  } catch (error: any) {
+    console.error('Error in /api/me:', error);
+    return res.status(500).json({ error: 'Failed to load profile' });
+  }
+});
+
+// Example: POST /api/admin/verify-role — admin-only endpoint that echoes the
+// caller's role. Demonstrates role-gated access.
+app.post('/api/admin/verify-role', async (req, res) => {
+  try {
+    const auth = await getAuthMiddleware();
+    const token = req.headers.authorization?.startsWith('Bearer ')
+      ? req.headers.authorization.slice(7) : null;
+    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+
+    const jwtPayload = await auth.verifySupabaseJwt(token);
+    if (!jwtPayload) return res.status(401).json({ error: 'Invalid token' });
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const url = process.env.VITE_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return res.status(500).json({ error: 'Server not configured' });
+    const client = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+    const profile = await auth.lookupProfile(client, jwtPayload.sub);
+    if (!profile) return res.status(401).json({ error: 'Profile not found' });
+
+    if (profile.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin role required', current: profile.role });
+    }
+
+    return res.json({ role: profile.role, ok: true });
+  } catch (error: any) {
+    console.error('Error in /api/admin/verify-role:', error);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// ---------------------------
 // NOTE: the previous /api/{auth,tenants,appointments,messages,telehealth,
 // billing,notifications,storage,audit,analytics,graphql} endpoints were fake
 // stubs returning fabricated literals. They were unused by the client (which
 // reads data directly from Supabase) and have been removed. The real API
-// surface is /api/health, /api/ai/*, and the OpenAPI spec below. Unknown /api
-// routes now return a JSON 404 (see startServer).
+// surface is /api/health, /api/ai/*, /api/me, and the OpenAPI spec below.
+// Unknown /api routes now return a JSON 404 (see startServer).
 // ---------------------------
 
 // ---------------------------
