@@ -16,6 +16,7 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
+  signUpPatient: (email: string, password: string, fullName: string, organizationId?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -63,6 +64,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(await getAuthService().getCurrentProfile());
   }, []);
 
+  const signUpPatient = useCallback(async (email: string, password: string, fullName: string, organizationId?: string) => {
+    setError(null);
+    const { session: s } = await getAuthService().signUpPatient(email, password, fullName, organizationId);
+    // When email confirmation is required, session is null — user must confirm first.
+    if (s) {
+      setSession(s);
+      setProfile(await getAuthService().getCurrentProfile());
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     await getAuthService().signOut();
     setSession(null);
@@ -73,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider
-      value={{ configured: isSupabaseConfigured, session, profile, role, loading, error, signIn, signOut }}
+      value={{ configured: isSupabaseConfigured, session, profile, role, loading, error, signIn, signUpPatient, signOut }}
     >
       {children}
     </AuthContext.Provider>

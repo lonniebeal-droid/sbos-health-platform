@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Loader2, AlertCircle, UserPlus } from 'lucide-react';
 import { useAuth } from '../../lib/authContext';
 
 // Real authentication screen backed by Supabase Auth (via useAuth().signIn).
 // Shown by App when Supabase is configured and there is no active session.
+// Includes a link to the patient self-enrollment (signup) screen.
 
-export const LoginScreen: React.FC = () => {
+interface Props {
+  onNavigateToSignup?: () => void;
+}
+
+export const LoginScreen: React.FC<Props> = ({ onNavigateToSignup }) => {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -106,9 +111,21 @@ export const LoginScreen: React.FC = () => {
           )}
         </form>
 
-        <p className="mt-4 text-center text-[11px] text-slate-400">
+        <p className="mt-3 text-center text-[11px] text-slate-400">
           256-bit encrypted • HIPAA-conscious platform (in development)
         </p>
+
+        {onNavigateToSignup && (
+          <div className="mt-3 text-center">
+            <button
+              onClick={onNavigateToSignup}
+              className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Create patient account
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

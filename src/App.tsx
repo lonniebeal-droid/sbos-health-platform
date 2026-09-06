@@ -11,6 +11,7 @@ import { AdminPortal } from './components/admin/AdminPortal';
 import { OrgProvider, useOrg } from './lib/organizationContext';
 import { AuthProvider, useAuth } from './lib/authContext';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { SignupScreen } from './components/auth/SignupScreen';
 
 function AppShell() {
   const auth = useAuth();
@@ -37,6 +38,10 @@ function AppShell() {
     if (auth.role) setCurrentRole(auth.role);
   }, [auth.role]);
 
+  useEffect(() => {
+    if (auth.profile?.organization_id) setActiveTenantId(auth.profile.organization_id);
+  }, [auth.profile?.organization_id]);
+
   const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
   // Auth gate (only when Supabase is configured; otherwise dev-fallback mode).
@@ -48,7 +53,7 @@ function AppShell() {
     );
   }
   if (auth.configured && !auth.session) {
-    return <LoginScreen />;
+    return <LoginView />;
   }
 
   const orgName = auth.profile
@@ -126,6 +131,15 @@ function AppShell() {
 
     </div>
   );
+}
+
+// Auth view with login ↔ signup navigation (no React Router needed).
+function LoginView() {
+  const [view, setView] = useState<'login' | 'signup'>('login');
+  if (view === 'signup') {
+    return <SignupScreen onBackToLogin={() => setView('login')} />;
+  }
+  return <LoginScreen onNavigateToSignup={() => setView('signup')} />;
 }
 
 export function App() {

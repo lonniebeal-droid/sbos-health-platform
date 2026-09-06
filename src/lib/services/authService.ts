@@ -15,6 +15,11 @@ export interface SignInResult {
   session: Session;
 }
 
+export interface SignUpResult {
+  user: User;
+  session: Session | null;
+}
+
 export function createAuthService(client: SupabaseClient) {
   const repos = createRepositories(client);
 
@@ -24,6 +29,37 @@ export function createAuthService(client: SupabaseClient) {
       const { data, error } = await client.auth.signInWithPassword({ email, password });
       if (error) throw new Error(error.message);
       if (!data.session || !data.user) throw new Error('Sign-in returned no session.');
+      return { user: data.user, session: data.session };
+    },
+
+    /**
+     * Register a new patient user. Creates both the Supabase Auth user and
+     * the public.users profile row (via the handle_new_user trigger). The
+     * role is always 'patient' — provider/admin accounts are created via
+     * the admin dashboard or service-role, never self-service.
+     *
+     * Returns the new user and session (when auto-confirm is enabled) or
+     * null session (when email confirmation is required).
+     */
+    async signUpPatient(
+      email: string,
+      password: string,
+      fullName: string,
+      organizationId?: string,
+    ): Promise<SignUpResult> {
+      const { data, error } = await client.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            role: 'patient',
+            ...(organizationId ? { organization_id: organizationId } : {}),
+          },
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (!data.user) throw new Error('Sign-up returned no user.');
       return { user: data.user, session: data.session };
     },
 

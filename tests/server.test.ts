@@ -119,6 +119,11 @@ describe('getGeminiClient', () => {
     expect(getGeminiClient()).toBeNull();
   });
 
+  it('returns null for the placeholder key MY_GEMINI_API_KEY', () => {
+    process.env.GEMINI_API_KEY = 'MY_GEMINI_API_KEY';
+    expect(getGeminiClient()).toBeNull();
+  });
+
   it('memoizes the client — same instance across calls with the same key', () => {
     process.env.GEMINI_API_KEY = 'test-key-alpha';
     const a = getGeminiClient();
