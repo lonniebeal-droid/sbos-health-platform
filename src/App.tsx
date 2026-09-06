@@ -34,6 +34,10 @@ function AppShell() {
     if (auth.role) setCurrentRole(auth.role);
   }, [auth.role]);
 
+  useEffect(() => {
+    if (auth.profile?.organization_id) setActiveTenantId(auth.profile.organization_id);
+  }, [auth.profile?.organization_id]);
+
   const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
 
   // Auth gate (only when Supabase is configured; otherwise dev-fallback mode).

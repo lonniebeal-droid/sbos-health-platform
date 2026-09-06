@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, Database, Server, FileText, Lock, Building2, FlaskConical } from 'lucide-react';
 import { TenantManagement } from './TenantManagement';
+import { MedicalConnectorPanel } from './MedicalConnectorPanel';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getRepositories, mapAuditLog } from '../../lib/repositories';
 import { useAsync } from '../../lib/hooks/useAsync';
@@ -24,7 +25,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   activeTenantId = 'tnt_001',
   onSelectTenant = () => {}
 }) => {
-  const [activeTab, setActiveTab] = useState<'tenants' | 'audit' | 'system'>('tenants');
+  const [activeTab, setActiveTab] = useState<'tenants' | 'connectors' | 'audit' | 'system'>('tenants');
   const orgs = useOrg();
 
   const fallbackAuditLogs: AuditLog[] = [
@@ -143,6 +144,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveTab('connectors')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            activeTab === 'connectors'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+          }`}
+        >
+          <Database className="w-4 h-4" /> EHR / PMS Connectors
+        </button>
+
+        <button
           onClick={() => setActiveTab('audit')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
             activeTab === 'audit'
@@ -174,6 +186,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           organizationLoading={orgs.loading}
           organizationError={orgs.error}
         />
+      )}
+
+      {activeTab === 'connectors' && (
+        <MedicalConnectorPanel organizationId={activeTenantId} />
       )}
 
       {activeTab === 'audit' && (
