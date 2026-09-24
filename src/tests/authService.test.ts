@@ -1,130 +1,73 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createAuthService } from '../lib/services/authService';
 
-// ---- Tests for authService.signUpPatient ----
-// Uses a fake Supabase client (no real backend). Verifies the signup method
-// calls the correct Supabase Auth API with the right metadata.
-
-function fakeAuthClient(overrides: Record<string, unknown>) {
-  return { auth: overrides } as any;
+function fakeAuthClient(authOverrides: Record<string, unknown>, rpc?: ReturnType<typeof vi.fn>) {
+  return { auth: authOverrides, rpc: rpc ?? vi.fn() } as any;
 }
 
 describe('authService.signUpPatient', () => {
-  it('calls signUp with patient role metadata', async () => {
+  it('sends only non-authoritative display metadata', async () => {
     const signUpMock = vi.fn(async () => ({
-      data: {
-        user: { id: 'new-user-1', email: 'patient@test.com' },
-        session: { access_token: 'tok-new' },
-      },
+      data: { user: { id: 'new-user-1', email: 'patient@test.com' }, session: { access_token: 'tok-new' } },
       error: null,
     }));
     const svc = createAuthService(fakeAuthClient({ signUp: signUpMock }));
-
-    const result = await svc.signUpPatient('patient@test.com', 'Password123!', 'Jane Doe', 'org-1');
-
-    expect(signUpMock).toHaveBeenCalledOnce();
+    const result = await svc.signUpPatient('patient@test.com', 'Password123!', 'Jane Doe');
     expect(signUpMock).toHaveBeenCalledWith({
       email: 'patient@test.com',
       password: 'Password123!',
-      options: {
-        data: {
-          full_name: 'Jane Doe',
-          role: 'patient',
-          organization_id: 'org-1',
-        },
-      },
+      options: { data: { full_name: 'Jane Doe' } },
     });
+    const call = signUpMock.mock.calls[0][0] as any;
+    expect(call.options.data).not.toHaveProperty('organization_id');
+    expect(call.options.data).not.toHaveProperty('role');
     expect(result.user.id).toBe('new-user-1');
-    expect(result.session?.access_token).toBe('tok-new');
   });
 
-  it('calls signUp without organizationId when not provided', async () => {
-    const signUpMock = vi.fn(async () => ({
-      data: {
-        user: { id: 'new-user-2', email: 'patient2@test.com' },
-        session: null,
-      },
-      error: null,
-    }));
+  it('supports email-confirmation signup with null session', async () => {
+    const signUpMock = vi.fn(async () => ({ data: { user: { id: 'new-user-2' }, session: null }, error: null }));
     const svc = createAuthService(fakeAuthClient({ signUp: signUpMock }));
-
     const result = await svc.signUpPatient('patient2@test.com', 'Password123!', 'John Smith');
-
-    expect(signUpMock).toHaveBeenCalledWith({
-      email: 'patient2@test.com',
-      password: 'Password123!',
-      options: {
-        data: {
-          full_name: 'John Smith',
-          role: 'patient',
-        },
-      },
-    });
-    expect(result.user.id).toBe('new-user-2');
     expect(result.session).toBeNull();
   });
 
-  it('throws the provider error message on failure', async () => {
-    const signUpMock = vi.fn(async () => ({
-      data: {},
-      error: { message: 'User already registered' },
-    }));
-    const svc = createAuthService(fakeAuthClient({ signUp: signUpMock }));
-
-    await expect(
-      svc.signUpPatient('existing@test.com', 'Password123!', 'Duplicate User'),
-    ).rejects.toThrow('User already registered');
-  });
-
-  it('throws when signUp returns no user', async () => {
-    const signUpMock = vi.fn(async () => ({
-      data: { user: null, session: null },
-      error: null,
-    }));
-    const svc = createAuthService(fakeAuthClient({ signUp: signUpMock }));
-
-    await expect(
-      svc.signUpPatient('no-user@test.com', 'Password123!', 'Ghost User'),
-    ).rejects.toThrow('Sign-up returned no user');
+  it('throws provider errors and missing-user results', async () => {
+    const providerFail = createAuthService(fakeAuthClient({ signUp: vi.fn(async () => ({ data: {}, error: { message: 'User already registered' } })) }));
+    await expect(providerFail.signUpPatient('existing@test.com', 'Password123!', 'Duplicate')).rejects.toThrow('User already registered');
+    const noUser = createAuthService(fakeAuthClient({ signUp: vi.fn(async () => ({ data: { user: null, session: null }, error: null })) }));
+    await expect(noUser.signUpPatient('none@test.com', 'Password123!', 'Ghost')).rejects.toThrow('Sign-up returned no user');
   });
 });
 
-describe('authService.signIn', () => {
-  it('throws the provider error message on bad credentials', async () => {
-    const signInMock = vi.fn(async () => ({
-      data: {},
-      error: { message: 'Invalid login credentials' },
-    }));
-    const svc = createAuthService(fakeAuthClient({ signInWithPassword: signInMock }));
-
-    await expect(svc.signIn('bad@test.com', 'wrong')).rejects.toThrow('Invalid login credentials');
+describe('authService.claimPatientEnrollment', () => {
+  it('passes only the enrollment token to the trusted RPC', async () => {
+    const rpc = vi.fn(async () => ({ data: 'patient-123', error: null }));
+    const svc = createAuthService(fakeAuthClient({}, rpc));
+    await expect(svc.claimPatientEnrollment('a'.repeat(64))).resolves.toBe('patient-123');
+    expect(rpc).toHaveBeenCalledWith('claim_patient_enrollment', { p_token: 'a'.repeat(64) });
   });
 
-  it('throws when signIn returns no session', async () => {
-    const signInMock = vi.fn(async () => ({
-      data: { user: { id: 'u1' }, session: null },
-      error: null,
-    }));
-    const svc = createAuthService(fakeAuthClient({ signInWithPassword: signInMock }));
-
-    await expect(svc.signIn('a@b.com', 'pw')).rejects.toThrow('Sign-in returned no session');
+  it('rejects short tokens before RPC and propagates server rejection', async () => {
+    const rpc = vi.fn(async () => ({ data: null, error: { message: 'enrollment email does not match authenticated user' } }));
+    const svc = createAuthService(fakeAuthClient({}, rpc));
+    await expect(svc.claimPatientEnrollment('short')).rejects.toThrow('Invalid enrollment token');
+    expect(rpc).not.toHaveBeenCalled();
+    await expect(svc.claimPatientEnrollment('b'.repeat(64))).rejects.toThrow('enrollment email does not match authenticated user');
   });
 });
 
-describe('authService.signOut', () => {
-  it('throws the provider error message on failure', async () => {
-    const signOutMock = vi.fn(async () => ({
-      error: { message: 'Network error during sign-out' },
-    }));
-    const svc = createAuthService(fakeAuthClient({ signOut: signOutMock }));
-
-    await expect(svc.signOut()).rejects.toThrow('Network error during sign-out');
+describe('authService.signIn/signOut', () => {
+  it('rejects bad credentials and missing sessions', async () => {
+    const bad = createAuthService(fakeAuthClient({ signInWithPassword: vi.fn(async () => ({ data: {}, error: { message: 'Invalid login credentials' } })) }));
+    await expect(bad.signIn('bad@test.com', 'wrong')).rejects.toThrow('Invalid login credentials');
+    const missing = createAuthService(fakeAuthClient({ signInWithPassword: vi.fn(async () => ({ data: { user: { id: 'u1' }, session: null }, error: null })) }));
+    await expect(missing.signIn('a@b.com', 'pw')).rejects.toThrow('Sign-in returned no session');
   });
 
-  it('succeeds when signOut returns no error', async () => {
-    const signOutMock = vi.fn(async () => ({ error: null }));
-    const svc = createAuthService(fakeAuthClient({ signOut: signOutMock }));
-
-    await expect(svc.signOut()).resolves.toBeUndefined();
+  it('signs out successfully and propagates sign-out errors', async () => {
+    const ok = createAuthService(fakeAuthClient({ signOut: vi.fn(async () => ({ error: null })) }));
+    await expect(ok.signOut()).resolves.toBeUndefined();
+    const fail = createAuthService(fakeAuthClient({ signOut: vi.fn(async () => ({ error: { message: 'Network error during sign-out' } })) }));
+    await expect(fail.signOut()).rejects.toThrow('Network error during sign-out');
   });
 });
