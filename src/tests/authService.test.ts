@@ -7,8 +7,12 @@ function fakeAuthClient(authOverrides: Record<string, unknown>, rpc?: ReturnType
 
 describe('authService.signUpPatient', () => {
   it('sends only non-authoritative display metadata', async () => {
-    const signUpMock = vi.fn(async () => ({
-      data: { user: { id: 'new-user-1', email: 'patient@test.com' }, session: { access_token: 'tok-new' } },
+    const signUpMock = vi.fn(async (input: {
+      email: string;
+      password: string;
+      options: { data: { full_name: string } };
+    }) => ({
+      data: { user: { id: 'new-user-1', email: input.email }, session: { access_token: 'tok-new' } },
       error: null,
     }));
     const svc = createAuthService(fakeAuthClient({ signUp: signUpMock }));
@@ -18,9 +22,10 @@ describe('authService.signUpPatient', () => {
       password: 'Password123!',
       options: { data: { full_name: 'Jane Doe' } },
     });
-    const call = signUpMock.mock.calls[0][0] as any;
-    expect(call.options.data).not.toHaveProperty('organization_id');
-    expect(call.options.data).not.toHaveProperty('role');
+    const call = signUpMock.mock.calls[0]?.[0];
+    expect(call).toBeDefined();
+    expect(call?.options.data).not.toHaveProperty('organization_id');
+    expect(call?.options.data).not.toHaveProperty('role');
     expect(result.user.id).toBe('new-user-1');
   });
 
