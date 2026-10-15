@@ -221,7 +221,7 @@ Help HR directors with employee plan comparisons, open enrollment questions, wel
     if (!ai) {
       // Fallback response if GEMINI_API_KEY is not configured
       return res.json({
-        reply: `[SBOS Jessie Assistant]: Thank you for your inquiry regarding "${prompt}". As your AI Care Navigator, I can confirm that your SBOS Gold Premier PPO plan covers telehealth visits at $20 copay and primary care visits at $20 copay. Would you like me to book an appointment or check your claim status?`,
+        reply: 'SBOS is in demonstration mode. I cannot verify insurance coverage, copays, appointments, or claim status without an authorized live integration. Please confirm benefits with the payer and scheduling with the clinic.',
         suggestedActions: [
           'Schedule Telehealth Visit',
           'View Plan Benefits & Deductible',
