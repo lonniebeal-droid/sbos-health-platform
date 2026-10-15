@@ -223,9 +223,9 @@ Help HR directors with employee plan comparisons, open enrollment questions, wel
       return res.json({
         reply: 'SBOS is in demonstration mode. I cannot verify insurance coverage, copays, appointments, or claim status without an authorized live integration. Please confirm benefits with the payer and scheduling with the clinic.',
         suggestedActions: [
-          'Schedule Telehealth Visit',
-          'View Plan Benefits & Deductible',
-          'Track My Claims',
+          'Contact Clinic Scheduling',
+          'Confirm Benefits with Insurer',
+          'Request Claim Status from Payer',
           'Speak with Care Navigator'
         ]
       });
