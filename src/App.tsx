@@ -63,6 +63,7 @@ function AppShell() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
 
+      <div role="status" className="border-b border-amber-400/30 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950 dark:bg-amber-950 dark:text-amber-100">This platform is under production acceptance. Use synthetic demo records only; do not enter real patient information.</div>
       {/* Universal SBOS OS Top Navigation */}
       <Header
         activeRole={currentRole}
