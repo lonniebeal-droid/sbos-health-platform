@@ -3,9 +3,15 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-DB_CONTAINER="${DB_CONTAINER:-$(docker ps --format '{{.Names}}' | grep -E '^supabase_db_' | head -n 1 || true)}"
-if [ -z "$DB_CONTAINER" ]; then
-  echo "No running Supabase DB container found. Start it with 'supabase start' first." >&2
+# Never select the first Supabase database: it may belong to another JU project.
+DB_CONTAINER="${DB_CONTAINER:-supabase_db_sbos-health-platform}"
+if [[ ! "$DB_CONTAINER" =~ ^supabase_db_sbos-health-platform$ ]]; then
+  echo "Refusing to run against unexpected database container: $DB_CONTAINER" >&2
+  exit 1
+fi
+if ! docker ps --format '{{.Names}}' | grep -Fxq -- "$DB_CONTAINER"; then
+  echo "Expected SBOS Health database container is not running: $DB_CONTAINER" >&2
+  echo "Start the SBOS Health Supabase project before running this verifier." >&2
   exit 1
 fi
 
