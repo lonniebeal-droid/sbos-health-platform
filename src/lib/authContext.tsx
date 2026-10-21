@@ -7,8 +7,6 @@ import type { UserRow } from './db/database.types';
 import type { Role } from '../types';
 
 interface AuthContextType {
-  /** Whether Supabase is configured. When false, the app runs in dev-fallback
-   *  mode (no login gate) so a fresh clone still works. */
   configured: boolean;
   session: Session | null;
   profile: UserRow | null;
@@ -16,7 +14,8 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUpPatient: (email: string, password: string, fullName: string, organizationId?: string) => Promise<void>;
+  signUpPatient: (email: string, password: string, fullName: string) => Promise<void>;
+  claimPatientEnrollment: (token: string) => Promise<string>;
   signOut: () => Promise<void>;
 }
 
@@ -32,7 +31,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!isSupabaseConfigured) return;
     const auth = getAuthService();
     let unsub = () => {};
-
     (async () => {
       try {
         const s = await auth.getSession();
@@ -45,33 +43,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       unsub = auth.onAuthStateChange(async (s) => {
         setSession(s);
-        try {
-          setProfile(s ? await auth.getCurrentProfile() : null);
-        } catch {
-          setProfile(null);
-        }
+        try { setProfile(s ? await auth.getCurrentProfile() : null); } catch { setProfile(null); }
       });
     })();
-
     return () => unsub();
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
     setError(null);
-    // onAuthStateChange updates session/profile; also set eagerly for snappy UX.
     const { session: s } = await getAuthService().signIn(email, password);
     setSession(s);
     setProfile(await getAuthService().getCurrentProfile());
   }, []);
 
-  const signUpPatient = useCallback(async (email: string, password: string, fullName: string, organizationId?: string) => {
+  const signUpPatient = useCallback(async (email: string, password: string, fullName: string) => {
     setError(null);
-    const { session: s } = await getAuthService().signUpPatient(email, password, fullName, organizationId);
-    // When email confirmation is required, session is null — user must confirm first.
+    const { session: s } = await getAuthService().signUpPatient(email, password, fullName);
     if (s) {
       setSession(s);
       setProfile(await getAuthService().getCurrentProfile());
     }
+  }, []);
+
+  const claimPatientEnrollment = useCallback(async (token: string) => {
+    setError(null);
+    const patientId = await getAuthService().claimPatientEnrollment(token);
+    setProfile(await getAuthService().getCurrentProfile());
+    return patientId;
   }, []);
 
   const signOut = useCallback(async () => {
@@ -83,9 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const role = profile ? mapDbRoleToUiRole(profile.role) : null;
 
   return (
-    <AuthContext.Provider
-      value={{ configured: isSupabaseConfigured, session, profile, role, loading, error, signIn, signUpPatient, signOut }}
-    >
+    <AuthContext.Provider value={{ configured: isSupabaseConfigured, session, profile, role, loading, error, signIn, signUpPatient, claimPatientEnrollment, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -2,8 +2,8 @@
 // application profile (public.users). Factory-based for unit testing with a fake
 // client; the app uses getAuthService() which binds the configured client.
 //
-// This REPLACES the fake `/api/auth/login` flow (which ignored passwords and
-// returned a fabricated token). Sessions are real Supabase JWTs.
+// Sessions are real Supabase JWTs. Patient tenant linkage is deliberately NOT
+// accepted from self-service client metadata; trusted enrollment RPCs own that.
 
 import type { SupabaseClient, Session, User } from '@supabase/supabase-js';
 import { requireSupabase } from '../supabaseClient';
@@ -24,7 +24,6 @@ export function createAuthService(client: SupabaseClient) {
   const repos = createRepositories(client);
 
   return {
-    /** Real password sign-in. Throws with the provider message on failure. */
     async signIn(email: string, password: string): Promise<SignInResult> {
       const { data, error } = await client.auth.signInWithPassword({ email, password });
       if (error) throw new Error(error.message);
@@ -33,34 +32,33 @@ export function createAuthService(client: SupabaseClient) {
     },
 
     /**
-     * Register a new patient user. Creates both the Supabase Auth user and
-     * the public.users profile row (via the handle_new_user trigger). The
-     * role is always 'patient' — provider/admin accounts are created via
-     * the admin dashboard or service-role, never self-service.
-     *
-     * Returns the new user and session (when auto-confirm is enabled) or
-     * null session (when email confirmation is required).
+     * Register a self-service patient identity. The client may supply only
+     * non-authoritative display metadata. Role and organization ownership are
+     * established by trusted database logic, never by client-selected metadata.
      */
-    async signUpPatient(
-      email: string,
-      password: string,
-      fullName: string,
-      organizationId?: string,
-    ): Promise<SignUpResult> {
+    async signUpPatient(email: string, password: string, fullName: string): Promise<SignUpResult> {
       const { data, error } = await client.auth.signUp({
         email,
         password,
-        options: {
-          data: {
-            full_name: fullName,
-            role: 'patient',
-            ...(organizationId ? { organization_id: organizationId } : {}),
-          },
-        },
+        options: { data: { full_name: fullName } },
       });
       if (error) throw new Error(error.message);
       if (!data.user) throw new Error('Sign-up returned no user.');
       return { user: data.user, session: data.session };
+    },
+
+    /**
+     * Claim a pre-existing patient enrollment. The token is the only client
+     * input; patient id, organization id and patient role are resolved and
+     * enforced server-side by public.claim_patient_enrollment/private internals.
+     */
+    async claimPatientEnrollment(token: string): Promise<string> {
+      const normalized = token.trim();
+      if (normalized.length < 32) throw new Error('Invalid enrollment token.');
+      const { data, error } = await client.rpc('claim_patient_enrollment', { p_token: normalized });
+      if (error) throw new Error(error.message);
+      if (typeof data !== 'string' || !data) throw new Error('Enrollment claim returned no patient id.');
+      return data;
     },
 
     async signOut(): Promise<void> {
@@ -76,18 +74,16 @@ export function createAuthService(client: SupabaseClient) {
 
     async getAuthUser(): Promise<User | null> {
       const { data, error } = await client.auth.getUser();
-      if (error) return null; // no/expired session is not exceptional
+      if (error) return null;
       return data.user;
     },
 
-    /** The application profile row for the signed-in user, or null. */
     async getCurrentProfile(): Promise<UserRow | null> {
       const { data } = await client.auth.getUser();
       if (!data.user) return null;
       return repos.users.getById(data.user.id);
     },
 
-    /** Subscribe to auth changes; returns an unsubscribe function. */
     onAuthStateChange(cb: (session: Session | null) => void): () => void {
       const { data } = client.auth.onAuthStateChange((_event, session) => cb(session));
       return () => data.subscription.unsubscribe();
